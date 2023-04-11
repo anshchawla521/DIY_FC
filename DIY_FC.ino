@@ -54,13 +54,23 @@ float altitude_from_baro = 0;
 unsigned long prev_time, current_time;
 float dt;
 
+////////////////////////////////////Sensor related data
+
+float batteryVoltage = 0;
+float batteryCurrent = 0;
+float coreTemp = 0;
 ////////////////////////////////////IMU related variables////////////////////////////
-float accx = 0;
-float accy = 0;
-float accz = 0;
-float gyrox = 0;
-float gyroy = 0;
-float gyroz = 0;
+float AccX, AccY, AccZ;
+float AccX_prev, AccY_prev, AccZ_prev;
+float GyroX, GyroY, GyroZ;
+float GyroX_prev, GyroY_prev, GyroZ_prev;
+
+float AccErrorX = 5.61;
+float AccErrorY = 0.04;
+float AccErrorZ = -0.00;
+float GyroErrorX = 2766.28;
+float GyroErrorY = 1866.66;
+float GyroErrorZ = 2071.64;
 
 const uint8_t bmi270_config_file[] = {
     0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x3d, 0xb1, 0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x91, 0x03, 0x80, 0x2e, 0xbc,
@@ -562,12 +572,12 @@ void loopRate(int freq)
 {
   // DESCRIPTION: Regulate main loop rate to specified frequency in Hz
   /*
-   * It's good to operate at a constant loop rate for filters to remain stable and whatnot. Interrupt routines running in the
-   * background cause the loop rate to fluctuate. This function basically just waits at the end of every loop iteration until
-   * the correct time has passed since the start of the current loop for the desired loop rate in Hz. 2kHz is a good rate to
-   * be at because the loop nominally will run between 2.8kHz - 4.2kHz. This lets us have a little room to add extra computations
-   * and remain above 2kHz, without needing to retune all of our filtering parameters.
-   */
+     It's good to operate at a constant loop rate for filters to remain stable and whatnot. Interrupt routines running in the
+     background cause the loop rate to fluctuate. This function basically just waits at the end of every loop iteration until
+     the correct time has passed since the start of the current loop for the desired loop rate in Hz. 2kHz is a good rate to
+     be at because the loop nominally will run between 2.8kHz - 4.2kHz. This lets us have a little room to add extra computations
+     and remain above 2kHz, without needing to retune all of our filtering parameters.
+  */
   float invFreq = 1.0 / freq * 1000000.0;
   unsigned long checker = micros();
 
@@ -581,30 +591,160 @@ void loopRate(int freq)
 void printAccelData()
 {
   Serial.print(" ACCX: ");
-  Serial.print(accx);
+  Serial.print(AccX);
   Serial.print(" ACCY: ");
-  Serial.print(accy);
+  Serial.print(AccY);
   Serial.print(" ACCZ: ");
-  Serial.println(accz);
+  Serial.println(AccZ);
 }
 
 void printGyroData()
 {
   Serial.print(" GYROX: ");
-  Serial.print(gyrox);
+  Serial.print(GyroX);
   Serial.print(" GYROY: ");
-  Serial.print(gyroy);
+  Serial.print(GyroY);
   Serial.print(" GYROZ: ");
-  Serial.println(gyroz);
+  Serial.println(GyroZ);
 }
 void get_imu_data()
 {
-  accx = read_register_spi(0x0C, GYRO_CS_1, true);
-  accy = read_register_spi(0x0E, GYRO_CS_1, true);
-  accz = read_register_spi(0x10, GYRO_CS_1, true);
-  gyrox = read_register_spi(0x12, GYRO_CS_1, true);
-  gyroy = read_register_spi(0x14, GYRO_CS_1, true);
-  gyroz = read_register_spi(0x16, GYRO_CS_1, true);
+  AccX = (int16_t)read_register_spi(0x0C, GYRO_CS_1, true);
+  AccY = (int16_t)read_register_spi(0x0E, GYRO_CS_1, true);
+  AccZ = (int16_t)read_register_spi(0x10, GYRO_CS_1, true);
+  // the raw values are in 2's complement form so convert to have to convert to signed integer and then to float
+
+  // the raw data values are obtained and in the initialization section we set the range as +- 8g so to get acc in terms of g divide by ((2^16 )/16)
+#define ACCEL_SCALE_FACTOR 4096
+  AccX /= ACCEL_SCALE_FACTOR;
+  AccY /= ACCEL_SCALE_FACTOR;
+  AccZ /= ACCEL_SCALE_FACTOR;
+  // Correct the outputs with the calculated error values
+  AccX = AccX - AccErrorX;
+  AccY = AccY - AccErrorY;
+  AccZ = AccZ - AccErrorZ;
+
+  GyroX = (int16_t)read_register_spi(0x12, GYRO_CS_1, true);
+  GyroY = (int16_t)read_register_spi(0x14, GYRO_CS_1, true);
+  GyroZ = (int16_t)read_register_spi(0x16, GYRO_CS_1, true);
+  // the raw values are in 2's complement form
+
+  // the raw data values are obtained and in the initialization section we set the range as +- 2000dps so to get acc in terms of g divide by ((2^16 )/4000)
+#define GYRO_SCALE_FACTOR 16.384
+  GyroX /= GYRO_SCALE_FACTOR;
+  GyroY /= GYRO_SCALE_FACTOR;
+  GyroZ /= GYRO_SCALE_FACTOR;
+
+  GyroX = GyroX - GyroErrorX;
+  GyroY = GyroY - GyroErrorY;
+  GyroZ = GyroZ - GyroErrorZ;
+}
+
+void calculate_IMU_error()
+{
+  // DESCRIPTION: Computes IMU accelerometer and gyro error on startup.
+  //  The vehicle should be kept at a flat surface
+
+  /*
+     Don't worry too much about what this is doing. The error values it computes are applied to the raw gyro and
+     accelerometer values AccX, AccY, AccZ, GyroX, GyroY, GyroZ in getIMUdata(). This eliminates drift in the
+     measurement.
+  */
+  for (int i = 5000; i >= 0; i--)
+  {
+    Serial.print("Please place the FC on a flat surface -> ");
+    Serial.println(i);
+    delay(1);
+  }
+  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ, MgX, MgY, MgZ;
+  AccErrorX = 0.0;
+  AccErrorY = 0.0;
+  AccErrorZ = 0.0;
+  GyroErrorX = 0.0;
+  GyroErrorY = 0.0;
+  GyroErrorZ = 0.0;
+
+  // Read IMU values 12000 times
+  int c = 0;
+  while (c < 12000)
+  {
+    AccX = (int16_t)read_register_spi(0x0C, GYRO_CS_1, true);
+    AccY = (int16_t)read_register_spi(0x0E, GYRO_CS_1, true);
+    AccZ = (int16_t)read_register_spi(0x10, GYRO_CS_1, true);
+
+    GyroX = (int16_t)read_register_spi(0x12, GYRO_CS_1, true);
+    GyroY = (int16_t)read_register_spi(0x14, GYRO_CS_1, true);
+    GyroZ = (int16_t)read_register_spi(0x16, GYRO_CS_1, true);
+
+    AccX /= ACCEL_SCALE_FACTOR;
+    AccY /= ACCEL_SCALE_FACTOR;
+    AccZ /= ACCEL_SCALE_FACTOR;
+    GyroX /= GYRO_SCALE_FACTOR;
+    GyroY /= GYRO_SCALE_FACTOR;
+    GyroZ /= GYRO_SCALE_FACTOR;
+
+    // Sum all readings
+    AccErrorX = AccErrorX + AccX;
+    AccErrorY = AccErrorY + AccY;
+    AccErrorZ = AccErrorZ + AccZ;
+    GyroErrorX = GyroErrorX + GyroX;
+    GyroErrorY = GyroErrorY + GyroY;
+    GyroErrorZ = GyroErrorZ + GyroZ;
+    c++;
+  }
+  // Divide the sum by 12000 to get the average error value
+  AccErrorX = AccErrorX / c;
+  AccErrorY = AccErrorY / c;
+  AccErrorZ = AccErrorZ / c - 1.0;
+  GyroErrorX = GyroErrorX / c;
+  GyroErrorY = GyroErrorY / c;
+  GyroErrorZ = GyroErrorZ / c;
+
+  Serial.print("float AccErrorX = ");
+  Serial.print(AccErrorX);
+  Serial.println(";");
+  Serial.print("float AccErrorY = ");
+  Serial.print(AccErrorY);
+  Serial.println(";");
+  Serial.print("float AccErrorZ = ");
+  Serial.print(AccErrorZ);
+  Serial.println(";");
+
+  Serial.print("float GyroErrorX = ");
+  Serial.print(GyroErrorX);
+  Serial.println(";");
+  Serial.print("float GyroErrorY = ");
+  Serial.print(GyroErrorY);
+  Serial.println(";");
+  Serial.print("float GyroErrorZ = ");
+  Serial.print(GyroErrorZ);
+  Serial.println(";");
+
+  Serial.println("Paste these values in user specified variables section and comment out calculate_IMU_error() in void setup.");
+}
+
+void getBatteryStatus()
+{
+  batteryVoltage = analogRead(ADC_BATT_1) * 0.0355;
+  batteryCurrent = analogRead(ADC_CURR_1) * 0.0386;
+  
+}
+void getCoreTemp()
+{
+  coreTemp = analogRead(ATEMP);
+}
+
+void printBatteryStatus()
+{
+  Serial.print("Battery Voltage:");
+  Serial.print(batteryVoltage);
+  Serial.print("Battery Current");
+  Serial.println(batteryCurrent);
+}
+void printCoreTemp()
+{
+  Serial.print("Core temperature");
+  Serial.println(coreTemp);
 }
 
 void setup()
@@ -627,6 +767,8 @@ void setup()
       delay(1000);
     }
   }
+
+  calculate_IMU_error();
 }
 
 void loop()
@@ -640,12 +782,15 @@ void loop()
   // Print data at 100hz - SELECT ONE:
   // printRadioData();
   // printDesiredState();
-  printGyroData();
+  // printGyroData();
   // printAccelData();
+  delay(50);
   //  printMagData();
   //  printRollPitchYaw();
   //  printPIDoutput();
   //  printMotorCommands();
+  printBatteryStatus();
+  printCoreTemp();
 
   get_imu_data();
   // Madgwick();
@@ -663,7 +808,8 @@ void loop()
   //
   // getCommands(); // Pulls current available radio commands
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
-  //
+  getBatteryStatus();
+  getCoreTemp();
   //// Regulate loop rate
   // loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
 }
