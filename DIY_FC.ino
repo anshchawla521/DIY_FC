@@ -54,6 +54,11 @@ float altitude_from_baro = 0;
 unsigned long prev_time, current_time;
 float dt;
 
+////////////////////////////////////Sensor related data
+
+float batteryVoltage = 0;
+float batteryCurrent = 0;
+float coreTemp = 0;
 ////////////////////////////////////IMU related variables////////////////////////////
 float AccX, AccY, AccZ;
 float AccX_prev, AccY_prev, AccZ_prev;
@@ -591,9 +596,6 @@ void printAccelData()
   Serial.print(AccY);
   Serial.print(" ACCZ: ");
   Serial.println(AccZ);
-
-
-  
 }
 
 void printGyroData()
@@ -670,7 +672,6 @@ void calculate_IMU_error()
     AccY = (int16_t)read_register_spi(0x0E, GYRO_CS_1, true);
     AccZ = (int16_t)read_register_spi(0x10, GYRO_CS_1, true);
 
-
     GyroX = (int16_t)read_register_spi(0x12, GYRO_CS_1, true);
     GyroY = (int16_t)read_register_spi(0x14, GYRO_CS_1, true);
     GyroZ = (int16_t)read_register_spi(0x16, GYRO_CS_1, true);
@@ -722,6 +723,30 @@ void calculate_IMU_error()
   Serial.println("Paste these values in user specified variables section and comment out calculate_IMU_error() in void setup.");
 }
 
+void getBatteryStatus()
+{
+  batteryVoltage = analogRead(ADC_BATT_1) * 0.0355;
+  batteryCurrent = analogRead(ADC_CURR_1) * 0.0386;
+  
+}
+void getCoreTemp()
+{
+  coreTemp = analogRead(ATEMP);
+}
+
+void printBatteryStatus()
+{
+  Serial.print("Battery Voltage:");
+  Serial.print(batteryVoltage);
+  Serial.print("Battery Current");
+  Serial.println(batteryCurrent);
+}
+void printCoreTemp()
+{
+  Serial.print("Core temperature");
+  Serial.println(coreTemp);
+}
+
 void setup()
 {
   pinMode(GYRO_CS_1, OUTPUT);
@@ -757,13 +782,15 @@ void loop()
   // Print data at 100hz - SELECT ONE:
   // printRadioData();
   // printDesiredState();
-   printGyroData();
-  //printAccelData();
+  // printGyroData();
+  // printAccelData();
   delay(50);
   //  printMagData();
   //  printRollPitchYaw();
   //  printPIDoutput();
   //  printMotorCommands();
+  printBatteryStatus();
+  printCoreTemp();
 
   get_imu_data();
   // Madgwick();
@@ -781,7 +808,8 @@ void loop()
   //
   // getCommands(); // Pulls current available radio commands
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
-  //
+  getBatteryStatus();
+  getCoreTemp();
   //// Regulate loop rate
   // loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
 }
