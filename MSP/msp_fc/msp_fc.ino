@@ -62,6 +62,11 @@ uint8_t VERSION = 5;
 uint8_t MULTITYPE = 4;
 uint8_t MSP_VERSION = 6;
 uint32_t CAPABILITY = 0x11223344;
+uint16_t CYCLETIME = 0x1235;
+uint16_t I2C_ERRORS_COUNT = 0X0000;
+uint16_t SENSOR = 0x1;
+uint32_t 
+
 
 // ----------------------------------------------------------
 
