@@ -15,6 +15,7 @@ Will be uploaded soon
 - [ ] Make a skeleton code for people to work on
 - [ ] Write documentation for getting started with stm32 programming using arduino ide
 - [ ] Alot tasks to everyone
+- [ ] Write a function to find the desired state from user
 
 ### Ashok
 
