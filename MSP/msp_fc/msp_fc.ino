@@ -65,9 +65,51 @@ uint32_t CAPABILITY = 0x11223344;
 uint16_t CYCLETIME = 0x1235;
 uint16_t I2C_ERRORS_COUNT = 0X0000;
 uint16_t SENSOR = 0x1;
-uint32_t 
+uint32_t FLAG = 0x456;
+uint8_t GLOBAL_CONF_CURRENT_SET = 0x5;
+int16_t ACCX = 0x12;
+int16_t ACCY = 0X13;
+int16_t ACCZ = 0x14;
+int16_t GYRX = 0x02;
+int16_t GYRY = 0x03;
+int16_t GYRZ = 0x04;
+int16_t MAGX = 0x22;
+int16_t MAGY = 0x23;
+int16_t MAGZ = 0x24;
+uint16_t SERVO_X[8] = {};
+uint16_t SERVO_Y[8] = {};
+uint16_t MOTOR_X[8] = {};
+uint16_t MOTOR_Y[8] = {};
+uint8_t GPS_FIX = 0x1;
+uint8_t GPS_NUMSAT = 0x2;
+uint32_t GPS_COORD_LAT = 0x98786;
+uint32_t GPS_COORD_LON = 0X4672;
+uint16_t GPS_ALTITUDE = 0x146;
+uint16_t GPS_SPEED = 0x987;
+uint16_t GPS_GROUND_COURSE = 0x123;
+uint16_t GPS_DISTANCE_TO_HOME = 0x23;
+uint16_t GPS_DIRECTION_TO_HOME = 0x56;
+uint8_t GPS_UPDATE = 0x17;
+int16_t ANGX = 0x5;
+int16_t ANGY = 0x2;
+int16_t HEADING = 0x7;
+int32_t EST_ALT =  0x555;
+int16_t VARIO = 0x444;
+uint8_t VBAT = 0x10;
+uint16_t INT_POWER_METER_SUM = 0x100;
+uint16_t RSSI = 0x200;
+uint16_t AMPERAGE = 0x300;
+uint8_t BYTE_RC_RATE = 0x10;
+uint8_t BYTE_RC_EXPO = 0x20;
+uint8_t BYTE_ROLL_PITCH_RATE = 0x30;
+uint8_t BYTE_YAW_RATE = 0x40;
+uint8_t BYTE_DYN_THR_PID = 0x50;
+uint8_t BYTE_THROTTLE_MID = 0x60;
+uint8_t BYTE_THROTTLE_EXPO = 0x70;
 
 
+
+int64_t tv;
 // ----------------------------------------------------------
 
 // Function to send an MSP request
@@ -109,6 +151,14 @@ void printPacket(uint8_t *data, uint8_t length)
     Serial.println();
 }
 
+void sendPacket(uint8_t *data, uint8_t length)
+{
+  for(uint8_t i = 0; i < length; i++)
+  {
+    mspSerial.write(data[i]);
+  }
+}
+
 //------------------------------------------------------------
 
 void send_MSP_IDENT()
@@ -122,12 +172,16 @@ void send_MSP_IDENT()
   packet[5] = VERSION;
   packet[6] = MULTITYPE;
   packet[7] = MSP_VERSION;
-  packet[8] = CAPABILITY & 0x000000ff;
-  packet[9] = CAPABILITY & 0x0000ff00;
-  packet[10] = CAPABILITY & 0x00ff0000;
-  packet[11] = CAPABILITY & 0xff000000;
+  tv = CAPABILITY;
+  packet[8] = tv & 0xff;
+  tv = tv >> 8;
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff;
+  tv = tv >> 8;
+  packet[11] = tv & 0xff;
 
-  mspSerial.write(packet);
+  sendPacket(packet, sizeof(packet));
   uint8_t cs = calculateChecksum(packet, sizeof(packet))
   mspSerial.write(cs);
   // mspSerial.write('$');
@@ -151,28 +205,472 @@ void send_MSP_STATUS()
   packet[0] = '$';
   packet[1] = 'M';
   packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
-  packet[3] = sizeof(VERSION) + sizeof(MULTITYPE) + sizeof(MSP_VERSION) + sizeof(CAPABILITY);
-  packet[4] = MSP_IDENT;
-  packet[5] = VERSION;
-  packet[6] = MULTITYPE;
-  packet[7] = MSP_VERSION;
-  packet[8] = CAPABILITY & 0x000000ff;
-  packet[9] = CAPABILITY & 0x0000ff00;
-  packet[10] = CAPABILITY & 0x00ff0000;
-  packet[11] = CAPABILITY & 0xff000000;
+  packet[3] = sizeof(CYCLETIME) + sizeof(I2C_ERRORS_COUNT) + sizeof(SENSOR) + sizeof(FLAG) + sizeof(GLOBAL_CONF_CURRENT_SET);
+  packet[4] = MSP_STATUS;
+  tv = CYCLETIME;
+  packet[5] = tv & 0xff;
+  tv = tv >> 8;
+  packet[6] = tv & 0xff;
+  tv = I2C_ERRORS_COUNT;
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff;
+  tv = SENSOR;
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff;
+  tv = FLAG;
+  packet[11] = tv & 0xff;
+  tv = tv >> 8;
+  packet[12] = tv & 0xff;
+  tv = tv >> 8;
+  packet[13] = tv & 0xff;
+  tv = tv >> 8;
+  packet[14] = tv & 0xff;
+  packet[15] = GLOBAL_CONF_CURRENT_SET;
 
-  mspSerial.write(packet);
+  sendPacket(packet, sizeof(packet));
   uint8_t cs = calculateChecksum(packet, sizeof(packet))
   mspSerial.write(cs);
-  // mspSerial.write('$');
-  // mspSerial.write('M');
-  // mspSerial.write('>');   // Direction as in response. May be absent so needs to be removed in that case.
-  // mspSerial.write(sizeof(VERSION) + sizeof(MULTITYPE) + sizeof(MSP_VERSION) + sizeof(CAPABILITY));
-  // mspSerial.write(MSP_IDENT);
-  // mspSerial.write(VERSION);
-  // mspSerial.write(MULTITYPE);
-  // mspSerial.write(MSP_VERSION);
-  // mspSerial.write(CAPABILITY);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+}
+
+void send_MSP_RAW_IMU()
+{
+  uint8_t packet[23];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(ACCX) + sizeof(ACCY) + sizeof(ACCZ) + sizeof(GYRX) + sizeof(GYRY) + sizeof(GYRZ) + sizeof(MAGX)+ sizeof(MAGY) + sizeof(MAGZ);
+  packet[4] = MSP_RAW_IMU;
+  tv = ACCX;
+  packet[5] = tv & 0xff;
+  tv = tv >> 8;
+  packet[6] = tv & 0xff;
+  tv = ACCY;
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff;
+  tv = ACCZ;
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff;
+  tv = GYRX;
+  packet[11] = tv & 0xff;
+  tv = tv >> 8;
+  packet[12] = tv & 0xff;
+  tv = GYRY;
+  packet[13] = tv & 0xff;
+  tv = tv >> 8;
+  packet[14] = tv & 0xff;
+  tv = GYRZ;
+  packet[15] = tv & 0xff;
+  tv = tv >> 8;
+  packet[16] = tv & 0xff;
+  tv = MAGX;
+  packet[17] = tv & 0xff;
+  tv = tv >> 8;
+  packet[18] = tv & 0xff;
+  tv = MAGY;
+  packet[19] = tv & 0xff;
+  tv = tv >> 8;
+  packet[20] = tv & 0xff;
+  tv = MAGZ;
+  packet[21] = tv & 0xff;
+  tv = tv >> 8;
+  packet[22] = tv & 0xff;  
+
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+}
+
+void send_MSP_SERVO()
+{
+  uint8_t packet[37];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(SERVO_X) + sizeof(SERVO_Y);
+  packet[4] = MSP_SERVO;
+  tv = SERVO_X[0];
+  packet[5] = tv & 0xff;
+  tv = tv >> 8;
+  packet[6] = tv & 0xff; 
+  tv = SERVO_X[1];
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff; 
+  tv = SERVO_X[2];
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff; 
+  tv = SERVO_X[3];
+  packet[11] = tv & 0xff;
+  tv = tv >> 8;
+  packet[12] = tv & 0xff; 
+  tv = SERVO_X[4];
+  packet[13] = tv & 0xff;
+  tv = tv >> 8;
+  packet[14] = tv & 0xff; 
+  tv = SERVO_X[5];
+  packet[15] = tv & 0xff;
+  tv = tv >> 8;
+  packet[16] = tv & 0xff; 
+  tv = SERVO_X[6];
+  packet[17] = tv & 0xff;
+  tv = tv >> 8;
+  packet[18] = tv & 0xff; 
+  tv = SERVO_X[7];
+  packet[19] = tv & 0xff;
+  tv = tv >> 8;
+  packet[20] = tv & 0xff; 
+  tv = SERVO_Y[0];
+  packet[21] = tv & 0xff;
+  tv = tv >> 8;
+  packet[22] = tv & 0xff; 
+  tv = SERVO_Y[1];
+  packet[23] = tv & 0xff;
+  tv = tv >> 8;
+  packet[24] = tv & 0xff; 
+  tv = SERVO_Y[2];
+  packet[25] = tv & 0xff;
+  tv = tv >> 8;
+  packet[26] = tv & 0xff; 
+  tv = SERVO_Y[3];
+  packet[27] = tv & 0xff;
+  tv = tv >> 8;
+  packet[28] = tv & 0xff; 
+  tv = SERVO_Y[4];
+  packet[29] = tv & 0xff;
+  tv = tv >> 8;
+  packet[30] = tv & 0xff; 
+  tv = SERVO_Y[5];
+  packet[31] = tv & 0xff;
+  tv = tv >> 8;
+  packet[32] = tv & 0xff; 
+  tv = SERVO_Y[6];
+  packet[33] = tv & 0xff;
+  tv = tv >> 8;
+  packet[34] = tv & 0xff; 
+  tv = SERVO_Y[7];
+  packet[35] = tv & 0xff;
+  tv = tv >> 8;
+  packet[36] = tv & 0xff; 
+  
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_MOTOR()
+{
+  uint8_t packet[37];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(MOTOR_X) + sizeof(MOTOR_Y);
+  packet[4] = MSP_MOTOR;
+  tv = MOTOR_X[0];
+  packet[5] = tv & 0xff;
+  tv = tv >> 8;
+  packet[6] = tv & 0xff; 
+  tv = MOTOR_X[1];
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff; 
+  tv = MOTOR_X[2];
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff; 
+  tv = MOTOR_X[3];
+  packet[11] = tv & 0xff;
+  tv = tv >> 8;
+  packet[12] = tv & 0xff; 
+  tv = MOTOR_X[4];
+  packet[13] = tv & 0xff;
+  tv = tv >> 8;
+  packet[14] = tv & 0xff; 
+  tv = MOTOR_X[5];
+  packet[15] = tv & 0xff;
+  tv = tv >> 8;
+  packet[16] = tv & 0xff; 
+  tv = MOTOR_X[6];
+  packet[17] = tv & 0xff;
+  tv = tv >> 8;
+  packet[18] = tv & 0xff; 
+  tv = MOTOR_X[7];
+  packet[19] = tv & 0xff;
+  tv = tv >> 8;
+  packet[20] = tv & 0xff; 
+  tv = MOTOR_Y[0];
+  packet[21] = tv & 0xff;
+  tv = tv >> 8;
+  packet[22] = tv & 0xff; 
+  tv = MOTOR_Y[1];
+  packet[23] = tv & 0xff;
+  tv = tv >> 8;
+  packet[24] = tv & 0xff; 
+  tv = MOTOR_Y[2];
+  packet[25] = tv & 0xff;
+  tv = tv >> 8;
+  packet[26] = tv & 0xff; 
+  tv = MOTOR_Y[3];
+  packet[27] = tv & 0xff;
+  tv = tv >> 8;
+  packet[28] = tv & 0xff; 
+  tv = MOTOR_Y[4];
+  packet[29] = tv & 0xff;
+  tv = tv >> 8;
+  packet[30] = tv & 0xff; 
+  tv = MOTOR_Y[5];
+  packet[31] = tv & 0xff;
+  tv = tv >> 8;
+  packet[32] = tv & 0xff; 
+  tv = MOTOR_Y[6];
+  packet[33] = tv & 0xff;
+  tv = tv >> 8;
+  packet[34] = tv & 0xff; 
+  tv = MOTOR_Y[7];
+  packet[35] = tv & 0xff;
+  tv = tv >> 8;
+  packet[36] = tv & 0xff; 
+  
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_RC()
+{
+  uint8_t packet[21];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(CYCLETIME) + sizeof(I2C_ERRORS_COUNT) + sizeof(SENSOR) + sizeof(FLAG) + sizeof(GLOBAL_CONF_CURRENT_SET);
+  packet[4] = MSP_RC;
+  packet[5]
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+// incomplete
+
+void send_MSP_RAW_GPS()
+{
+  uint8_t packet[21];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(GPS_FIX) + sizeof(GPS_NUMSAT) + sizeof(GPS_COORD_LAT) + sizeof(GPS_COORD_LON) + sizeof(GPS_ALTITUDE) + sizeof(GPS_SPEED) + sizeof(GPS_GROUND_COURSE);
+  packet[4] = MSP_RAW_GPS;
+  packet[5] = GPS_FIX;
+  packet[6] = GPS_NUMSAT;
+  tv = GPS_COORD_LAT;
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff;
+  tv = tv >> 8;
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff;
+  tv = GPS_COORD_LON;
+  packet[11] = tv & 0xff;
+  tv = tv >> 8;
+  packet[12] = tv & 0xff;
+  tv = tv >> 8;
+  packet[13] = tv & 0xff;
+  tv = tv >> 8;
+  packet[14] = tv & 0xff;
+  tv = GPS_ALTITUDE;
+  packet[15] = tv & 0xff;
+  tv = tv >> 8;
+  packet[16] = tv & 0xff;
+  tv = GPS_SPEED;
+  packet[17] = tv & 0xff;
+  tv = tv >> 8;
+  packet[18] = tv & 0xff;
+  tv = GPS_GROUND_COURSE;
+  packet[19] = tv & 0xff;
+  tv = tv >> 8;
+  packet[20] = tv & 0xff;
+
+
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_COMP_GPS()
+{
+  uint8_t packet[10];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(GPS_DISTANCE_TO_HOME) + sizeof(GPS_DIRECTION_TO_HOME) + sizeof(GPS_UPDATE);
+  packet[4] = MSP_COMP_GPS;
+  tv = GPS_DISTANCE_TO_HOME;
+  packet[5] = tv & 0xff;
+  tv = tv >> 8;
+  packet[6] = tv & 0xff;
+  tv = GPS_DIRECTION_TO_HOME;
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff;
+  packet[9] = GPS_UPDATE;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_ATTITUDE()
+{
+  uint8_t packet[11];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(ANGX) + sizeof(ANGY) + sizeof(HEADING);
+  packet[4] = MSP_ATTITUDE;
+  tv = ANGX;
+  packet[5] = tv & 0xff;
+  tv = tv >> 8;
+  packet[6] = tv & 0xff;
+  tv = ANGY;
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff;
+  tv = HEADING;
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_ALTITUDE()
+{
+  uint8_t packet[11];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(EST_ALT) + sizeof(VARIO);
+  packet[4] = MSP_ALTITUDE;
+  tv = EST_ALT;
+  packet[5] = tv & 0xff;
+  tv = tv >> 8;
+  packet[6] = tv & 0xff;
+  tv = tv >> 8;
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff;
+  tv = VARIO;
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_ANALOG()
+{
+  uint8_t packet[12];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(VBAT) + sizeof(INT_POWER_METER_SUM) + sizeof(RSSI) + sizeof(AMPERAGE);
+  packet[4] = MSP_ANALOG;
+  packet[5] = VBAT;
+  tv = INT_POWER_METER_SUM;
+  packet[6] = tv & 0xff;
+  tv = tv >> 8;
+  packet[7] = tv & 0xff;
+  tv = RSSI;
+  packet[8] = tv & 0xff;
+  tv = tv >> 8;
+  packet[9] = tv & 0xff;
+  tv = AMPERAGE;
+  packet[10] = tv & 0xff;
+  tv = tv >> 8;
+  packet[11] = tv & 0xff;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+}
+
+void send_MSP_RC_TUNING()
+{
+  uint8_t packet[12];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(BYTE_RC_RATE) + sizeof(BYTE_RC_EXPO) + sizeof(BYTE_ROLL_PITCH_RATE) + sizeof(BYTE_YAW_RATE) + sizeof(BYTE_DYN_THR_PID) + sizeof(BYTE_THROTTLE_EXPO) + sizeof(BYTE_THROTTLE_MID);
+  packet[4] = MSP_RC_TUNING;
+  packet[5] = BYTE_RC_RATE;
+  packet[6] = BYTE_RC_EXPO;
+  packet[7] = BYTE_ROLL_PITCH_RATE;
+  packet[8] = BYTE_YAW_RATE;
+  packet[9] = BYTE_DYN_THR_PID;
+  packet[10] = BYTE_THROTTLE_MID;
+  packet[11] = BYTE_THROTTLE_EXPO;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
 
   printPacket(packet,sizeof(packet))
   Serial.print(cs);
@@ -215,30 +713,39 @@ void loop()
       break;
 
       case MSP_RAW_IMU :
+      send_MSP_RAW_IMU();
       break;
       
       case MSP_SERVO :
+      send_MSP_SERVO();
       break;
       
       case MSP_MOTOR :
+      send_MSP_MOTOR();
       break;
       
       case MSP_RC :
+      send_MSP_RC();
       break;
       
       case MSP_RAW_GPS :
+      send_MSP_RAW_GPS();
       break;
       
       case MSP_COMP_GPS :
+      send_MSP_COMP_GPS();
       break;
       
       case MSP_ATTITUDE :
+      send_MSP_ATTITUDE();
       break;
       
       case MSP_ALTITUDE :
+      send_MSP_ALTITUDE();
       break;
       
       case MSP_ANALOG :
+      send_MSP_ANALOG();
       break;
       
       case MSP_RC_TUNING :
