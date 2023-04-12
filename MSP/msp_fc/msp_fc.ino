@@ -50,6 +50,14 @@
 
 SoftwareSerial mspSerial(RX, TX);
 
+typedef struct {
+  uint16_t min;
+  uint16_t max;
+  uint16_t middle;
+  uint8_t rate;
+} servo_conf_;
+
+
 void setup() {
   Serial.begin(115200);     // Serial port for debugging
   mspSerial.begin(115200);
@@ -106,7 +114,65 @@ uint8_t BYTE_YAW_RATE = 0x40;
 uint8_t BYTE_DYN_THR_PID = 0x50;
 uint8_t BYTE_THROTTLE_MID = 0x60;
 uint8_t BYTE_THROTTLE_EXPO = 0x70;
-
+uint8_t ROLL_X = 0x10;
+uint8_t ROLL_Y = 0x11;
+uint8_t ROLL_Z = 0x12;
+uint8_t PITCH_X = 0x20;
+uint8_t PITCH_Y = 0x21;
+uint8_t PITCH_Z = 0x22;
+uint8_t YAW_X = 0x30;
+uint8_t YAW_Y = 0x31;
+uint8_t YAW_Z = 0x32;
+uint8_t ALT_X = 0x40;
+uint8_t ALT_Y = 0x41;
+uint8_t ALT_Z = 0x42;
+uint8_t POS_X = 0x50;
+uint8_t POS_Y = 0x51;
+uint8_t POS_Z = 0x52;
+uint8_t POSR_X = 0x60;
+uint8_t POSR_Y = 0x61;
+uint8_t POSR_Z = 0x62;
+uint8_t NAVR_X = 0x70;
+uint8_t NAVR_Y = 0x71;
+uint8_t NAVR_Z = 0x72;
+uint8_t LEVEL_X = 0x80;
+uint8_t LEVEL_Y = 0x81;
+uint8_t LEVEL_Z = 0x82;
+uint8_t MAG_X = 0x90;
+uint8_t MAG_Y = 0x91;
+uint8_t MAG_Z = 0x92;
+uint8_t VEL_X = 0xa0;
+uint8_t VEL_Y = 0xa1;
+uint8_t VEL_Z = 0xa2;
+uint8_t BOXITEMS = 0x02;
+uint16_t BOX_CONF = 0x13;
+uint16_t INT_POWER_TRIGGER1 = 0x01;
+uint16_t CONF_MIN_THROTTLE = 0x0400;
+uint16_t MAXTHROTTLE = 0x0401;
+uint16_t MINCOMMAND = 0x400;
+uint16_t CONF_FAILSAFE_THROTTLE = 0x3ff;
+uint16_t PLOG_ARM = 0x010;
+uint32_t PLOG_LIFETIME;
+uint16_t CONF_MAG_DECLINATION = 0x20;
+uint8_t CONF_VBATSCALE = 0x50;
+uint8_t CONF_VBATLEVEL_WARN1 = 0x60;
+uint8_t CONF_VBATLEVEL_WARN2 = 0x70;
+uint8_t CONF_VBATLEVEL_CRIT = 0x80;
+uint8_t MOTOR1 = 0x01;
+uint8_t MOTOR2 = 0x02;
+uint8_t MOTOR3 = 0x03;
+uint8_t MOTOR4 = 0x04;
+uint8_t MOTOR5 = 0x05;
+uint8_t MOTOR6 = 0x06;
+uint8_t MOTOR7 = 0x07;
+uint8_t MOTOR8 = 0x08;
+uint8_t WP_NO = 0x0f;
+uint32_t LAT;
+uint32_t LON;
+uint32_t ALT_HOLD;
+uint16_t TIME_TO_STAY;
+uint8_t NAV_FLAG;
+servo_conf_ CONF_SERVO[8];
 
 
 int64_t tv;
@@ -459,7 +525,7 @@ void send_MSP_MOTOR()
 
 }
 
-void send_MSP_RC()
+void send_MSP_RC()  // incomplete
 {
   uint8_t packet[21];
   packet[0] = '$';
@@ -478,7 +544,7 @@ void send_MSP_RC()
   Serial.println();
 
 }
-// incomplete
+
 
 void send_MSP_RAW_GPS()
 {
@@ -677,6 +743,259 @@ void send_MSP_RC_TUNING()
   Serial.println();
 }
 
+void send_MSP_PID()
+{
+  uint8_t packet[35];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = 30;
+  packet[4] = MSP_PID;
+  packet[5] = ROLL_X;
+  packet[6] = PITCH_X;
+  packet[7] = YAW_X;
+  packet[8] = ALT_X;
+  packet[9] = POS_X;
+  packet[10] = POSR_X;
+  packet[11] = NAVR_X;
+  packet[12] = LEVEL_X;
+  packet[13] = MAG_X;
+  packet[14] = VEL_X;
+  packet[15] = ROLL_Y;
+  packet[16] = PITCH_Y;
+  packet[17] = YAW_Y;
+  packet[18] = ALT_Y;
+  packet[19] = POS_Y;
+  packet[20] = POSR_Y;
+  packet[21] = NAVR_Y;
+  packet[22] = LEVEL_Y;
+  packet[23] = MAG_Y;
+  packet[24] = VEL_Y;
+  packet[25] = ROLL_Z;
+  packet[26] = PITCH_Z;
+  packet[27] = YAW_Z;
+  packet[28] = ALT_Z;
+  packet[29] = POS_Z;
+  packet[30] = POSR_Z;
+  packet[31] = NAVR_Z;
+  packet[32] = LEVEL_Z;
+  packet[33] = MAG_Z;
+  packet[34] = VEL_Z;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+}
+
+void send_MSP_BOX()
+{
+  uint8_t packet[8];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(BOXITEMS) + sizeof(BOX_CONF);
+  packet[4] = MSP_BOX;
+  packet[5] = BOXITEMS;   // select the mode by making bit 1.
+  tv = BOX_CONF;          // set the values by making use of the table as in above link
+  packet[6] = tv & 0xff;
+  tv = tv >> 8;
+  packet[7] = tv & 0xff;
+
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_MISC()
+{
+  uint8_t packet[27];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(INT_POWER_TRIGGER1) + sizeof(CONF_MIN_THROTTLE) + sizeof(MAXTHROTTLE) + sizeof(MINCOMMAND) + sizeof(CONF_FAILSAFE_THROTTLE) + sizeof(PLOG_ARM) + sizeof(PLOG_LIFETIME) + sizeof(CONF_MAG_DECLINATION) + sizeof(CONF_VBATSCALE) + sizeof(CONF_VBATLEVEL_WARN1) + sizeof(CONF_VBATLEVEL_WARN2) + sizeof(CONF_VBATLEVEL_CRIT);
+  packet[4] = MSP_MISC;
+  tv = INT_POWER_TRIGGER1;
+  packet[5] = tv & 0xff;
+  tv = tv >> 8;
+  packet[6] = tv & 0xff;
+  tv = CONF_MIN_THROTTLE;
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff;
+  tv = MAXTHROTTLE;
+  packet[9] = tv & 0xff;
+  tv = tv >> 8;
+  packet[10] = tv & 0xff;
+  tv = MINCOMMAND;
+  packet[11] = tv & 0xff;
+  tv = tv >> 8;
+  packet[12] = tv & 0xff;
+  tv = CONF_FAILSAFE_THROTTLE;
+  packet[13] = tv & 0xff;
+  tv = tv >> 8;
+  packet[14] = tv & 0xff;
+  tv = PLOG_ARM;
+  packet[15] = tv & 0xff;
+  tv = tv >> 8;
+  packet[16] = tv & 0xff;
+  tv = PLOG_LIFETIME;
+  packet[17] = tv & 0xff;
+  tv = tv >> 8;
+  packet[18] = tv & 0xff;
+  tv = tv >> 8;
+  packet[19] = tv & 0xff;
+  tv = tv >> 8;
+  packet[20] = tv & 0xff;
+  tv = CONF_MAG_DECLINATION;
+  packet[21] = tv & 0xff;
+  tv = tv >> 8;
+  packet[22] = tv & 0xff;
+  packet[23] = CONF_VBATSCALE;
+  packet[24] = CONF_VBATLEVEL_WARN1;
+  packet[25] = CONF_VBATLEVEL_WARN2;
+  packet[26] = CONF_VBATLEVEL_CRIT;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_MOTOR_PINS()
+{
+  uint8_t packet[13];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = 8;
+  packet[4] = MSP_MOTOR_PINS;
+  packet[5] = MOTOR1;
+  packet[6] = MOTOR2;
+  packet[7] = MOTOR3;
+  packet[8] = MOTOR4;
+  packet[9] = MOTOR5;
+  packet[10] = MOTOR6;
+  packet[11] = MOTOR7;
+  packet[12] = MOTOR8;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+
+}
+
+void send_MSP_BOXNAMES()  // incomplete
+{
+  
+}
+
+void send_MSP_PIDNAMES()  // incomplete
+{
+
+}
+
+void send_MSP_WP()
+{
+  uint8_t packet[23];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(WP_NO) + sizeof(LAT) + sizeof(LON) + sizeof(ALT_HOLD) + sizeof(HEADING) + sizeof(TIME_TO_STAY) + sizeof(NAV_FLAG);
+  packet[4] = MSP_WP;
+  packet[5] = WP_NO;
+  tv = LAT;
+  packet[6] = tv & 0xff;
+  tv = tv >> 8;
+  packet[7] = tv & 0xff;
+  tv = tv >> 8;
+  packet[8] = tv & 0xff;
+  tv = tv >> 8;
+  packet[9] = tv & 0xff;
+  tv = LON;
+  packet[10] = tv & 0xff;
+  tv = tv >> 8;
+  packet[11] = tv & 0xff;
+  tv = tv >> 8;
+  packet[12] = tv & 0xff;
+  tv = tv >> 8;
+  packet[13] = tv & 0xff;  
+  tv = ALT_HOLD;
+  packet[14] = tv & 0xff;
+  tv = tv >> 8;
+  packet[15] = tv & 0xff;
+  tv = tv >> 8;
+  packet[16] = tv & 0xff;
+  tv = tv >> 8;
+  packet[17] = tv & 0xff;  
+  tv = HEADING;
+  packet[18] = tv & 0xff;
+  tv = tv >> 8;
+  packet[19] = tv & 0xff;
+  tv = TIME_TO_STAY;
+  packet[20] = tv & 0xff;
+  tv = tv >> 8;
+  packet[21] = tv & 0xff;
+  packet[22] = NAV_FLAG;
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+}
+
+void send_MSP_BOXIDS()    // incomplete
+{
+
+}
+
+void send_MSP_SERVO_CONF()
+{
+  uint8_t packet[21];
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+  packet[3] = sizeof(CONF_SERVO);
+  packet[4] = MSP_SERVO_CONF;
+  for(uint8_t i = 0; i < sizeof(CONF_SERVO); i++)
+  {
+    tv = CONF_SERVO[i];
+    for(uint8_t j = 0; j < sizeof(servo_conf_); j++)
+    {
+      packet[5 + i*7 + j] = tv & 0xff;
+      tv = tv >> 8;
+    }
+  }
+
+  sendPacket(packet, sizeof(packet));
+  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  mspSerial.write(cs);
+
+  printPacket(packet,sizeof(packet))
+  Serial.print(cs);
+  Serial.println();
+}
+
 //------------------------------------------------------------
 
 void loop()
@@ -749,42 +1068,43 @@ void loop()
       break;
       
       case MSP_RC_TUNING :
+      send_MSP_RC_TUNING();
       break;
       
       case MSP_PID :
+      send_MSP_PID();
       break;
       
       case MSP_BOX :
+      send_MSP_BOX();
       break;
       
       case MSP_MISC :
+      send_MSP_MISC();
       break;
       
       case MSP_MOTOR_PINS :
+      send_MSP_MOTOR_PINS();
       break;
       
       case MSP_BOXNAMES :
+      send_MSP_BOXNAMES();
       break;
       
       case MSP_PIDNAMES :
+      send_MSP_PIDNAMES();
       break;
       
       case MSP_WP :
+      send_MSP_WP();
       break;
       
       case MSP_BOXIDS :
+      send_MSP_BOXIDS();
       break;
       
       case MSP_SERVO_CONF :
-      break;
-      
-      case MSP_ACC_CALIBRATION :
-      break;
-      
-      case MSP_MAG_CALIBRATION :
-      break;
-      
-      case MSP_EEPROM_WRITE :
+      send_MSP_SERVO_CONF();
       break;
     }
 }
