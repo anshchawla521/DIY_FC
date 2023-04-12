@@ -43,6 +43,15 @@
 #define GYRO_EXTI_1 PC4
 #define GYRO_CS_1 PA4
 
+#define THROTTLE_CH 2
+#define ROLL_CH 0
+#define PITCH_CH 1
+#define YAW_CH 3
+
+#define ROLL_RATE 200  // in deg/s
+#define PITCH_RATE 200 // in deg/s // if want variable rates / on switch then use uint16_t data type
+#define YAW_RATE 190   // in deg/s
+
 SPIClass SPI_1(SPI_MOSI_1, SPI_MISO_1, SPI_SCK_1);
 // HardwareSerial Serial(Serial_RX_6, Serial_TX_6);
 
@@ -51,8 +60,11 @@ float magy = 0;
 float magz = 0;
 float altitude_from_baro = 0;
 
-unsigned long prev_time, current_time;
+unsigned long prev_time, current_time, print_counter;
 float dt;
+bool print_authorisation = false;
+
+byte channels[8] = {0};
 
 ////////////////////////////////////Sensor related data
 
@@ -71,6 +83,8 @@ float AccErrorZ = -0.00;
 float GyroErrorX = 2766.28;
 float GyroErrorY = 1866.66;
 float GyroErrorZ = 2071.64;
+
+float thro_des, roll_des, pitch_des, yaw_des;
 
 const uint8_t bmi270_config_file[] = {
     0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x3d, 0xb1, 0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x91, 0x03, 0x80, 0x2e, 0xbc,
@@ -590,6 +604,8 @@ void loopRate(int freq)
 
 void printAccelData()
 {
+  if (!print_authorisation)
+    return;
   Serial.print(" ACCX: ");
   Serial.print(AccX);
   Serial.print(" ACCY: ");
@@ -600,6 +616,8 @@ void printAccelData()
 
 void printGyroData()
 {
+  if (!print_authorisation)
+    return;
   Serial.print(" GYROX: ");
   Serial.print(GyroX);
   Serial.print(" GYROY: ");
@@ -727,7 +745,6 @@ void getBatteryStatus()
 {
   batteryVoltage = analogRead(ADC_BATT_1) * 0.0355;
   batteryCurrent = analogRead(ADC_CURR_1) * 0.0386;
-  
 }
 void getCoreTemp()
 {
@@ -736,6 +753,8 @@ void getCoreTemp()
 
 void printBatteryStatus()
 {
+  if (!print_authorisation)
+    return;
   Serial.print("Battery Voltage:");
   Serial.print(batteryVoltage);
   Serial.print("Battery Current");
@@ -743,6 +762,8 @@ void printBatteryStatus()
 }
 void printCoreTemp()
 {
+  if (!print_authorisation)
+    return;
   Serial.print("Core temperature");
   Serial.println(coreTemp);
 }
@@ -771,6 +792,65 @@ void setup()
   calculate_IMU_error();
 }
 
+void getCommands()
+{
+  // code for reading sbus data goes here
+  channels[0] = 0;
+  channels[1] = 0;
+  channels[2] = 0;
+  channels[3] = 0;
+  channels[4] = 0;
+  channels[5] = 0;
+  channels[6] = 0;
+  channels[7] = 0;
+}
+
+void getDesiredState()
+{
+  // the desired state will be calculated on the basis of channels
+  float normalized_pitch = 0;
+  float normalized_roll = 0;
+  float normalized_yaw = 0;
+  float normalized_throttle = 0;
+  normalized_pitch = (channels[PITCH_CH] - 1500 / 500);     // -1 TO 1
+  normalized_roll = (channels[ROLL_CH] - 1500 / 500);       // -1 TO 1
+  normalized_yaw = (channels[PITCH_CH] - 1500 / 500);       // -1 TO 1
+  normalized_throttle = (channels[PITCH_CH] - 1000 / 1000); // 0 TO 1
+
+  pitch_des = constrain(normalized_pitch, -1.0, 1.0) * PITCH_RATE;
+  roll_des = constrain(normalized_pitch, -1.0, 1.0) * ROLL_RATE;
+  yaw_des = constrain(normalized_pitch, -1.0, 1.0) * YAW_RATE;
+  thro_des = constrain(normalized_throttle, 0, 1.0);
+}
+
+void printDesiredState()
+{
+  if (!print_authorisation)
+    return;
+  Serial.print("Desired Roll = ");
+  Serial.print(roll_des);
+  Serial.print(" Desired Pitch = ");
+  Serial.print(pitch_des);
+  Serial.print(" Desired Throttle = ");
+  Serial.print(thro_des);
+  Serial.print(" Desired Yaw = ");
+  Serial.println(yaw_des);
+}
+
+void controlPrintRate(uint16_t maxfreq)
+{
+  unsigned long print_time = (1.0 / maxfreq) * 1000000;
+  if (current_time - print_counter >= print_time)
+  {
+    print_counter = current_time;
+    print_authorisation = true;
+  }
+  else
+  {
+    print_authorisation = false;
+  }
+}
+
 void loop()
 {
   prev_time = current_time;
@@ -779,23 +859,26 @@ void loop()
 
   // loopBlink(); // Indicate we are in main loop with short blink every 1.5 seconds
 
-  // Print data at 100hz - SELECT ONE:
+  // Print data at 100hz - Can Select multiple:
+  // Note: its Important to not comment out the the controlPrintRate function.
+  // Note: Its not recommended to go above/below 100 hz print speed
+
   // printRadioData();
   // printDesiredState();
   // printGyroData();
   // printAccelData();
-  delay(50);
   //  printMagData();
   //  printRollPitchYaw();
   //  printPIDoutput();
   //  printMotorCommands();
   printBatteryStatus();
   printCoreTemp();
+  controlPrintRate(100);
 
   get_imu_data();
   // Madgwick();
 
-  // getDesState();
+  getDesiredState();
 
   // controlAngle(); // PID loops goes inside this
   // controlMixer();
@@ -806,7 +889,7 @@ void loop()
   //
   // commandMotors();
   //
-  // getCommands(); // Pulls current available radio commands
+  getCommands(); // Pulls current available radio commands
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
   getBatteryStatus();
   getCoreTemp();
