@@ -54,6 +54,8 @@ float altitude_from_baro = 0;
 unsigned long prev_time, current_time;
 float dt;
 
+byte channels[8] = 0;
+
 ////////////////////////////////////Sensor related data
 
 float batteryVoltage = 0;
@@ -771,6 +773,19 @@ void setup()
   calculate_IMU_error();
 }
 
+void getCommands()
+{
+  // code for reading sbus data goes here
+  channels[0] = 0;
+  channels[1] = 0;
+  channels[2] = 0;
+  channels[3] = 0;
+  channels[4] = 0;
+  channels[5] = 0;
+  channels[6] = 0;
+  channels[7] = 0;
+}
+
 void loop()
 {
   prev_time = current_time;
@@ -806,7 +821,7 @@ void loop()
   //
   // commandMotors();
   //
-  // getCommands(); // Pulls current available radio commands
+   getCommands(); // Pulls current available radio commands
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
   getBatteryStatus();
   getCoreTemp();
