@@ -2,8 +2,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define RX 10
-#define TX 11
+#define RX PC7
+#define TX PC6
 
 // ------------------------------------------------------
 
@@ -248,7 +248,7 @@ void send_MSP_IDENT()
   packet[11] = tv & 0xff;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
   // mspSerial.write('$');
   // mspSerial.write('M');
@@ -260,7 +260,7 @@ void send_MSP_IDENT()
   // mspSerial.write(MSP_VERSION);
   // mspSerial.write(CAPABILITY);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 }
@@ -296,10 +296,10 @@ void send_MSP_STATUS()
   packet[15] = GLOBAL_CONF_CURRENT_SET;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 }
@@ -351,10 +351,10 @@ void send_MSP_RAW_IMU()
 
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 }
@@ -433,10 +433,10 @@ void send_MSP_SERVO()
   packet[36] = tv & 0xff; 
   
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -516,10 +516,10 @@ void send_MSP_MOTOR()
   packet[36] = tv & 0xff; 
   
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -533,13 +533,12 @@ void send_MSP_RC()  // incomplete
   packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
   packet[3] = sizeof(CYCLETIME) + sizeof(I2C_ERRORS_COUNT) + sizeof(SENSOR) + sizeof(FLAG) + sizeof(GLOBAL_CONF_CURRENT_SET);
   packet[4] = MSP_RC;
-  packet[5]
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -588,10 +587,10 @@ void send_MSP_RAW_GPS()
 
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -616,10 +615,10 @@ void send_MSP_COMP_GPS()
   packet[9] = GPS_UPDATE;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -647,10 +646,10 @@ void send_MSP_ATTITUDE()
   packet[10] = tv & 0xff;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -678,10 +677,10 @@ void send_MSP_ALTITUDE()
   packet[10] = tv & 0xff;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -710,10 +709,10 @@ void send_MSP_ANALOG()
   packet[11] = tv & 0xff;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 }
@@ -735,10 +734,10 @@ void send_MSP_RC_TUNING()
   packet[11] = BYTE_THROTTLE_EXPO;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 }
@@ -783,10 +782,10 @@ void send_MSP_PID()
   packet[34] = VEL_Z;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 }
@@ -807,10 +806,10 @@ void send_MSP_BOX()
 
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -866,10 +865,10 @@ void send_MSP_MISC()
   packet[26] = CONF_VBATLEVEL_CRIT;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -893,10 +892,10 @@ void send_MSP_MOTOR_PINS()
   packet[12] = MOTOR8;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 
@@ -956,10 +955,10 @@ void send_MSP_WP()
   packet[22] = NAV_FLAG;
 
   sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
+  uint8_t cs = calculateChecksum(packet, sizeof(packet));
   mspSerial.write(cs);
 
-  printPacket(packet,sizeof(packet))
+  printPacket(packet,sizeof(packet));
   Serial.print(cs);
   Serial.println();
 }
@@ -971,29 +970,29 @@ void send_MSP_BOXIDS()    // incomplete
 
 void send_MSP_SERVO_CONF()
 {
-  uint8_t packet[21];
-  packet[0] = '$';
-  packet[1] = 'M';
-  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
-  packet[3] = sizeof(CONF_SERVO);
-  packet[4] = MSP_SERVO_CONF;
-  for(uint8_t i = 0; i < sizeof(CONF_SERVO); i++)
-  {
-    tv = CONF_SERVO[i];
-    for(uint8_t j = 0; j < sizeof(servo_conf_); j++)
-    {
-      packet[5 + i*7 + j] = tv & 0xff;
-      tv = tv >> 8;
-    }
-  }
-
-  sendPacket(packet, sizeof(packet));
-  uint8_t cs = calculateChecksum(packet, sizeof(packet))
-  mspSerial.write(cs);
-
-  printPacket(packet,sizeof(packet))
-  Serial.print(cs);
-  Serial.println();
+//  uint8_t packet[21];
+//  packet[0] = '$';
+//  packet[1] = 'M';
+//  packet[2] = '>';    // Direction as in response. May be absent so needs to be removed in that case.
+//  packet[3] = sizeof(CONF_SERVO);
+//  packet[4] = MSP_SERVO_CONF;
+//  for(uint8_t i = 0; i < sizeof(CONF_SERVO); i++)
+//  {
+//    tv = CONF_SERVO[i];
+//    for(uint8_t j = 0; j < sizeof(servo_conf_); j++)
+//    {
+//      packet[5 + i*7 + j] = tv & 0xff;
+//      tv = tv >> 8;
+//    }
+//  }
+//
+//  sendPacket(packet, sizeof(packet));
+//  uint8_t cs = calculateChecksum(packet, sizeof(packet));
+//  mspSerial.write(cs);
+//
+//  printPacket(packet,sizeof(packet));
+//  Serial.print(cs);
+//  Serial.println();
 }
 
 //------------------------------------------------------------
@@ -1016,9 +1015,15 @@ void loop()
   }
   Serial.println();
 
-  // Derive a way to separate the code from the received information and other details.
-
-    uint8_t code;
+  // 0 = '$'
+  // 1 = 'M'
+  // 2 = Direction
+  // 3 = payload size
+  // 4 = type
+  // 5- N-1 = payload data
+  // N-1 = checksum
+     uint8_t code = response[4];
+  //  uint8_t code = MSP_IDENT;
 
     // Once received the data, Based on the code obtained, one of the following switch statements will work.
     switch(code)
