@@ -892,7 +892,42 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-  // printRadioData();
+  printRadioData();
+    {
+    // Debugging output
+    Serial.print("Ch1: ");
+    Serial.print(ch1);
+    Serial.print(", Ch2: ");
+    Serial.print(ch2);
+    Serial.print(", Ch3: ");
+    Serial.print(ch3);
+    Serial.print(", Ch4: ");
+    Serial.print(ch4);
+    Serial.print(", Ch5: ");
+    Serial.print(ch5);
+    Serial.print(", Ch6: ");
+    Serial.print(ch6);
+    Serial.print(", Ch7: ");
+    Serial.print(ch7);
+    Serial.print(", Ch8: ");
+    Serial.print(ch8);
+    Serial.print(", Ch9: ");
+    Serial.print(ch9);
+    Serial.print(", Ch10: ");
+    Serial.print(ch10);
+    Serial.print(", Ch11: ");
+    Serial.print(ch11);
+    Serial.print(", Ch12: ");
+    Serial.print(ch12);
+    Serial.print(", Ch13: ");
+    Serial.print(ch13);
+    Serial.print(", Ch14: ");
+    Serial.print(ch14);
+    Serial.print(", Ch15: ");
+    Serial.print(ch15);
+    Serial.print(", Ch16: ");
+    Serial.println(ch16);
+    }
   // printDesiredState();
   // printGyroData();
   // printAccelData();
