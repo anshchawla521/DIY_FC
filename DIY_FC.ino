@@ -1,5 +1,7 @@
 #include <SPI.h>
+#include "SBUS.h"
 
+//////////////// parameters taken directly from betaflight using resource command//////////////
 #define BEEPER_1 PC5
 #define MOTOR_1 PB6
 #define MOTOR_2 PB7
@@ -42,6 +44,14 @@
 #define OSD_CS_1 PB12
 #define GYRO_EXTI_1 PC4
 #define GYRO_CS_1 PA4
+///////////////////////////parameters end///////////////
+////////////////////paramters from dump//////////////
+int vbat_scale = 110;
+int ibata_scale = 386;
+int vbat_divider = 10;
+int vbat_multiplier = 1;
+
+////////////////////parameters/////////////
 
 #define THROTTLE_CH 2
 #define ROLL_CH 0
@@ -77,12 +87,12 @@ float AccX_prev, AccY_prev, AccZ_prev;
 float GyroX, GyroY, GyroZ;
 float GyroX_prev, GyroY_prev, GyroZ_prev;
 
-float AccErrorX = 5.61;
-float AccErrorY = 0.04;
-float AccErrorZ = -0.00;
-float GyroErrorX = 2766.28;
-float GyroErrorY = 1866.66;
-float GyroErrorZ = 2071.64;
+float AccErrorX = -0.01;
+float AccErrorY = -0.01;
+float AccErrorZ = 0.00;
+float GyroErrorX = -0.12;
+float GyroErrorY = 0.01;
+float GyroErrorZ = -0.03;
 
 float thro_des, roll_des, pitch_des, yaw_des;
 
@@ -743,8 +753,8 @@ void calculate_IMU_error()
 
 void getBatteryStatus()
 {
-  batteryVoltage = analogRead(ADC_BATT_1) * 0.0355;
-  batteryCurrent = analogRead(ADC_CURR_1) * 0.0386;
+  batteryVoltage = ((analogRead(ADC_BATT_1)*vbat_multiplier*vbat_scale*3.3))/vbat_divider/1024;
+  batteryCurrent = analogRead(ADC_CURR_1)*3.3*ibata_scale/1024;
 }
 void getCoreTemp()
 {
@@ -795,14 +805,34 @@ void setup()
 void getCommands()
 {
   // code for reading sbus data goes here
-  channels[0] = 0;
-  channels[1] = 0;
-  channels[2] = 0;
-  channels[3] = 0;
-  channels[4] = 0;
-  channels[5] = 0;
-  channels[6] = 0;
-  channels[7] = 0;
+  HardwareSerial Serial1(PA3, PA2);
+SBUS sbus(Serial1); // Create an SBUS object
+
+void setup() {
+  Serial.begin(9600); // Initialize serial communication for debugging
+  sbus.begin(); // Initialize the SBUS object
+}
+
+void loop() {
+  sbus.process(); // Process incoming SBUS data
+  if (sbus._channels[0] != 0) { // Check if a new SBUS packet has been received
+    // Extract channel values from the SBUS object
+    int ch1 = sbus._channels[0];
+    int ch2 = sbus._channels[1];
+    int ch3 = sbus._channels[2];
+    int ch4 = sbus._channels[3];
+    int ch5 = sbus._channels[4];
+    int ch6 = sbus._channels[5];
+    int ch7 = sbus._channels[6];
+    int ch8 = sbus._channels[7];
+    int ch9 = sbus._channels[8];
+    int ch10 = sbus._channels[9];
+    int ch11 = sbus._channels[10];
+    int ch12 = sbus._channels[11];
+    int ch13 = sbus._channels[12];
+    int ch14 = sbus._channels[13];
+    int ch15 = sbus._channels[14];
+    int ch16 = sbus._channels[15];
 }
 
 void getDesiredState()
@@ -863,16 +893,51 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-  // printRadioData();
+  printRadioData();
+    {
+    // Debugging output
+    Serial.print("Ch1: ");
+    Serial.print(ch1);
+    Serial.print(", Ch2: ");
+    Serial.print(ch2);
+    Serial.print(", Ch3: ");
+    Serial.print(ch3);
+    Serial.print(", Ch4: ");
+    Serial.print(ch4);
+    Serial.print(", Ch5: ");
+    Serial.print(ch5);
+    Serial.print(", Ch6: ");
+    Serial.print(ch6);
+    Serial.print(", Ch7: ");
+    Serial.print(ch7);
+    Serial.print(", Ch8: ");
+    Serial.print(ch8);
+    Serial.print(", Ch9: ");
+    Serial.print(ch9);
+    Serial.print(", Ch10: ");
+    Serial.print(ch10);
+    Serial.print(", Ch11: ");
+    Serial.print(ch11);
+    Serial.print(", Ch12: ");
+    Serial.print(ch12);
+    Serial.print(", Ch13: ");
+    Serial.print(ch13);
+    Serial.print(", Ch14: ");
+    Serial.print(ch14);
+    Serial.print(", Ch15: ");
+    Serial.print(ch15);
+    Serial.print(", Ch16: ");
+    Serial.println(ch16);
+    }
   // printDesiredState();
   // printGyroData();
   // printAccelData();
-  //  printMagData();
-  //  printRollPitchYaw();
-  //  printPIDoutput();
-  //  printMotorCommands();
-  printBatteryStatus();
-  printCoreTemp();
+  // printMagData();
+  // printRollPitchYaw();
+  // printPIDoutput();
+  // printMotorCommands();
+   printBatteryStatus();
+  // printCoreTemp();
   controlPrintRate(100);
 
   get_imu_data();
