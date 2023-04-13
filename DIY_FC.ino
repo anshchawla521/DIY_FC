@@ -757,7 +757,7 @@ void getBatteryStatus()
 }
 void getCoreTemp()
 {
-  coreTemp = analogRead(ATEMP);
+  coreTemp = analogRead(ATEMP)/1024*3.3;
 }
 
 void printBatteryStatus()
@@ -880,7 +880,7 @@ void loop()
   // printRollPitchYaw();
   // printPIDoutput();
   // printMotorCommands();
-   printBatteryStatus();
+   //printBatteryStatus();
   // printCoreTemp();
   controlPrintRate(100);
 

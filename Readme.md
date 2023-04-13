@@ -53,3 +53,10 @@ Will be uploaded soon
 - [ ] Write and test code for PID loop in stm32
 - [ ] write code for interfacing SDcard slot present on speedybee
 - [ ] Adapt the PID code to the main code
+
+## Hardware Involved
+
+- Speedybee f405v3 stack
+- Pressure sensor SPl06
+- IMU - BMI270
+- OSD chip - AT7456e
