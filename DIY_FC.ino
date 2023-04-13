@@ -1,5 +1,6 @@
 #include <SPI.h>
 
+//////////////// parameters taken directly from betaflight using resource command//////////////
 #define BEEPER_1 PC5
 #define MOTOR_1 PB6
 #define MOTOR_2 PB7
@@ -42,6 +43,14 @@
 #define OSD_CS_1 PB12
 #define GYRO_EXTI_1 PC4
 #define GYRO_CS_1 PA4
+///////////////////////////parameters end///////////////
+////////////////////paramters from dump//////////////
+int vbat_scale = 110;
+int ibata_scale = 386;
+int vbat_divider = 10;
+int vbat_multiplier = 1;
+
+////////////////////parameters/////////////
 
 #define THROTTLE_CH 2
 #define ROLL_CH 0
@@ -77,12 +86,12 @@ float AccX_prev, AccY_prev, AccZ_prev;
 float GyroX, GyroY, GyroZ;
 float GyroX_prev, GyroY_prev, GyroZ_prev;
 
-float AccErrorX = 5.61;
-float AccErrorY = 0.04;
-float AccErrorZ = -0.00;
-float GyroErrorX = 2766.28;
-float GyroErrorY = 1866.66;
-float GyroErrorZ = 2071.64;
+float AccErrorX = -0.01;
+float AccErrorY = -0.01;
+float AccErrorZ = 0.00;
+float GyroErrorX = -0.12;
+float GyroErrorY = 0.01;
+float GyroErrorZ = -0.03;
 
 float thro_des, roll_des, pitch_des, yaw_des;
 
@@ -743,8 +752,8 @@ void calculate_IMU_error()
 
 void getBatteryStatus()
 {
-  batteryVoltage = analogRead(ADC_BATT_1) * 0.0355;
-  batteryCurrent = analogRead(ADC_CURR_1) * 0.0386;
+  batteryVoltage = ((analogRead(ADC_BATT_1)*vbat_multiplier*vbat_scale*3.3))/vbat_divider/1024;
+  batteryCurrent = analogRead(ADC_CURR_1)*3.3*ibata_scale/1024;
 }
 void getCoreTemp()
 {
@@ -867,12 +876,12 @@ void loop()
   // printDesiredState();
   // printGyroData();
   // printAccelData();
-  //  printMagData();
-  //  printRollPitchYaw();
-  //  printPIDoutput();
-  //  printMotorCommands();
-  printBatteryStatus();
-  printCoreTemp();
+  // printMagData();
+  // printRollPitchYaw();
+  // printPIDoutput();
+  // printMotorCommands();
+   printBatteryStatus();
+  // printCoreTemp();
   controlPrintRate(100);
 
   get_imu_data();

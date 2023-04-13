@@ -16,6 +16,7 @@ Will be uploaded soon
 - [ ] Write documentation for getting started with stm32 programming using arduino ide
 - [ ] Alot tasks to everyone
 - [ ] Write a function to find the desired state from user
+- [ ] Add battery capacity meter
 
 ### Ashok
 
