@@ -1,4 +1,5 @@
 #include <SPI.h>
+#include "SBUS.h"
 
 //////////////// parameters taken directly from betaflight using resource command//////////////
 #define BEEPER_1 PC5
