@@ -808,12 +808,9 @@ void getCommands()
   HardwareSerial Serial1(PA3, PA2);
 SBUS sbus(Serial1); // Create an SBUS object
 
-void setup() {
   Serial.begin(9600); // Initialize serial communication for debugging
   sbus.begin(); // Initialize the SBUS object
-}
 
-void loop() {
   sbus.process(); // Process incoming SBUS data
   if (sbus._channels[0] != 0) { // Check if a new SBUS packet has been received
     // Extract channel values from the SBUS object
@@ -833,6 +830,7 @@ void loop() {
     int ch14 = sbus._channels[13];
     int ch15 = sbus._channels[14];
     int ch16 = sbus._channels[15];
+}
 }
 
 void getDesiredState()
@@ -881,20 +879,36 @@ void controlPrintRate(uint16_t maxfreq)
   }
 }
 
-void loop()
-{
-  prev_time = current_time;
-  current_time = micros();
-  dt = (current_time - prev_time) / 1000000.0;
-
-  // loopBlink(); // Indicate we are in main loop with short blink every 1.5 seconds
-
-  // Print data at 100hz - Can Select multiple:
-  // Note: its Important to not comment out the the controlPrintRate function.
-  // Note: Its not recommended to go above/below 100 hz print speed
-
-  printRadioData();
+void printRadioData()
     {
+// code for reading sbus data goes here
+  HardwareSerial Serial1(PA3, PA2);
+SBUS sbus(Serial1); // Create an SBUS object
+
+  Serial.begin(9600); // Initialize serial communication for debugging
+  sbus.begin(); // Initialize the SBUS object
+
+  sbus.process(); // Process incoming SBUS data
+  if (sbus._channels[0] != 0) { // Check if a new SBUS packet has been received
+    // Extract channel values from the SBUS object
+    int ch1 = sbus._channels[0];
+    int ch2 = sbus._channels[1];
+    int ch3 = sbus._channels[2];
+    int ch4 = sbus._channels[3];
+    int ch5 = sbus._channels[4];
+    int ch6 = sbus._channels[5];
+    int ch7 = sbus._channels[6];
+    int ch8 = sbus._channels[7];
+    int ch9 = sbus._channels[8];
+    int ch10 = sbus._channels[9];
+    int ch11 = sbus._channels[10];
+    int ch12 = sbus._channels[11];
+    int ch13 = sbus._channels[12];
+    int ch14 = sbus._channels[13];
+    int ch15 = sbus._channels[14];
+    int ch16 = sbus._channels[15];
+}
+
     // Debugging output
     Serial.print("Ch1: ");
     Serial.print(ch1);
@@ -929,6 +943,20 @@ void loop()
     Serial.print(", Ch16: ");
     Serial.println(ch16);
     }
+
+void loop()
+{
+  prev_time = current_time;
+  current_time = micros();
+  dt = (current_time - prev_time) / 1000000.0;
+
+  // loopBlink(); // Indicate we are in main loop with short blink every 1.5 seconds
+
+  // Print data at 100hz - Can Select multiple:
+  // Note: its Important to not comment out the the controlPrintRate function.
+  // Note: Its not recommended to go above/below 100 hz print speed
+
+  printRadioData();
   // printDesiredState();
   // printGyroData();
   // printAccelData();
