@@ -27,6 +27,7 @@ Will be uploaded soon
 - [ ] Write and Test code to that dispalys error code using LED
 - [ ] get altitude from the SPL06 sensor using SPEEDYBEE
 - [ ] adapt the led code to run without delay
+- [ ] write code for a status led that blinks every 1.5 seconds to show that the FC code is alive.
 - [ ] implement pre-arm functionality on channel 5
 - [ ] implement arm/disarm functionality on channel 6
 
@@ -36,18 +37,21 @@ Will be uploaded soon
 - [ ] Write and test the code for driving ESC's using PWM signal
 - [ ] look into the DSHOT protocol
 - [ ] implement failsafe Functionality
+- [ ] write code for calibration of sticks
 
 ### Shubham
 
 - [ ] Write and test the code for interfacing M8n GPS with Speedybee
 - [ ] find the algorithm for waypoint navigation using GPS
 - [ ] take a look into the madgwick filter
+- [ ] write code for madgwick/kalamn filter after comparison
 - [ ] Make the code for GPS interrupt based
 
 ### Peeyush
 
 - [ ] Write and test the code for interfacing Compass with Speedybee
 - [ ] find the algorithm for waypoint navigation using GPS
+- [ ] write code for madgwick/kalamn filter after comparison
 - [ ] take a look into the kalman filter
 
 ### Anubhav
