@@ -41,9 +41,9 @@ Will be uploaded soon
 
 ### Shubham
 
-- [ ] Write and test the code for interfacing M8n GPS with Speedybee
-- [ ] find the algorithm for waypoint navigation using GPS
-- [ ] take a look into the madgwick filter
+- [x] Write and test the code for interfacing M8n GPS with Speedybee
+- [x] find the algorithm for waypoint navigation using GPS
+- [x] take a look into the madgwick filter
 - [ ] write code for madgwick/kalamn filter after comparison
 - [ ] Make the code for GPS interrupt based
 
