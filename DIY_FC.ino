@@ -1,5 +1,5 @@
 #include <SPI.h>
-#include "SBUS.h"
+#include "src/SBUS/SBUS.h"
 
 //////////////// parameters taken directly from betaflight using resource command//////////////
 #define BEEPER_1 PC5
@@ -927,10 +927,10 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-  printRadioData();
+  //printRadioData();
   // printDesiredState();
   // printGyroData();
-  // printAccelData();
+   printAccelData();
   // printMagData();
   // printRollPitchYaw();
   // printPIDoutput();
