@@ -49,10 +49,10 @@ Will be uploaded soon
 
 ### Peeyush
 
-- [ ] Write and test the code for interfacing Compass with Speedybee
-- [ ] find the algorithm for waypoint navigation using GPS
-- [ ] write code for madgwick/kalamn filter after comparison
-- [ ] take a look into the kalman filter
+- [x] Write and test the code for interfacing Compass with Speedybee
+- [x] find the algorithm for waypoint navigation using GPS
+- [] write code for madgwick/kalamn filter after comparison
+- [x] take a look into the kalman filter
 
 ### Anubhav
 
