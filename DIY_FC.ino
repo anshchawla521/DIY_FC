@@ -1,5 +1,10 @@
 #include <SPI.h>
 #include "src/SBUS/SBUS.h"
+#include <TinyGPS++.h>
+#include <MadgwickAHRS.h>
+
+
+
 
 //////////////// parameters taken directly from betaflight using resource command//////////////
 #define BEEPER_1 PC5
@@ -76,6 +81,16 @@ float dt;
 bool print_authorisation = false;
 
 int channels[16] = {0};
+
+///////////////////////////////////GPS related Data
+HardwareSerial ss(PC7, PC6);
+float latitude=0;
+float longitude=0;
+
+//////////////////////////////////Madgwick filter
+Madgwick filter;
+float mad_roll, mad_pitch, mad_heading;
+
 
 ////////////////////////////////////Sensor related data
 
@@ -636,6 +651,30 @@ void printGyroData()
   Serial.print(" GYROZ: ");
   Serial.println(GyroZ);
 }
+
+ void printGPSData()
+ {
+  if (!print_authorisation)
+    return;
+  Serial.print("Latitude= "); 
+  Serial.print(latitude, 6);
+  Serial.print(" Longitude= "); 
+  Serial.println(longitude, 6);
+  
+
+ }
+void get_gps_data()
+{
+  while (ss.available() > 0){
+    gps.encode(ss.read());
+    if (gps.location.isUpdated()){
+      latitude=gps.location.lat();
+      longitude=gps.location.lng();
+      
+    }
+  }
+}
+
 void get_imu_data()
 {
   AccX = (int16_t)read_register_spi(0x0C, GYRO_CS_1, true);
@@ -667,6 +706,30 @@ void get_imu_data()
   GyroX = GyroX - GyroErrorX;
   GyroY = GyroY - GyroErrorY;
   GyroZ = GyroZ - GyroErrorZ;
+}
+
+
+void Madgwick()
+{
+   filter.updateIMU(GyroX, GyroY, GyroZ, AccX, AccY, AccZ);
+
+    // print the heading, pitch and roll
+    mad_roll = filter.getRoll();
+    mad_pitch = filter.getPitch();
+    mad_heading = filter.getYaw();
+}
+
+void print_madgwick()
+{
+  Serial.print("Orientation: ");
+  Serial.println("heading: ");
+    Serial.print(heading);
+    Serial.print(" ");
+    Serial.println("pitch: ");
+    Serial.print(pitch);
+    Serial.print(" ");
+    Serial.print("roll: ");
+    Serial.println(roll);
 }
 
 void calculate_IMU_error()
@@ -783,6 +846,8 @@ void setup()
 {
   pinMode(GYRO_CS_1, OUTPUT);
   pinMode(LED_1, OUTPUT);
+  ss.begin(9600);
+  filter.begin(1600);
 
   SPI_1.begin();
   SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
@@ -940,6 +1005,9 @@ void loop()
   controlPrintRate(100);
 
   get_imu_data();
+  // To check if gps code is working fine
+  get_gps_data();
+  printGPSData();
   // Madgwick();
 
   getDesiredState();
