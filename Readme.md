@@ -44,14 +44,14 @@ Will be uploaded soon
 - [x] Write and test the code for interfacing M8n GPS with Speedybee
 - [x] find the algorithm for waypoint navigation using GPS
 - [x] take a look into the madgwick filter
-- [ ] write code for madgwick/kalamn filter after comparison
+- [x] write code for madgwick/kalamn filter after comparison
 - [ ] Make the code for GPS interrupt based
 
 ### Peeyush
 
 - [x] Write and test the code for interfacing Compass with Speedybee
 - [x] find the algorithm for waypoint navigation using GPS
-- [] write code for madgwick/kalamn filter after comparison
+- [ ] write code for madgwick/kalamn filter after comparison
 - [x] take a look into the kalman filter
 
 ### Anubhav
