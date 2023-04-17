@@ -1,5 +1,7 @@
 #include <SPI.h>
-#include "SBUS.h"
+#include "src/SBUS/SBUS.h"
+#include <TinyGPS++.h>
+#include "src/MadgwickAHRS/src/MadgwickAHRS.h"
 
 //////////////// parameters taken directly from betaflight using resource command//////////////
 #define BEEPER_1 PC5
@@ -76,6 +78,15 @@ float dt;
 bool print_authorisation = false;
 
 int channels[16] = {0};
+
+///////////////////////////////////GPS related Data
+HardwareSerial ss(PC7, PC6);
+float latitude = 0;
+float longitude = 0;
+TinyGPSPlus gps;
+//////////////////////////////////Madgwick filter
+Madgwick filter;
+float mad_roll, mad_pitch, mad_heading;
 
 ////////////////////////////////////Sensor related data
 
@@ -636,6 +647,30 @@ void printGyroData()
   Serial.print(" GYROZ: ");
   Serial.println(GyroZ);
 }
+
+void printGPSData()
+{
+  if (!print_authorisation)
+    return;
+  Serial.print("Latitude= ");
+  Serial.print(latitude, 6);
+  Serial.print(" Longitude= ");
+  Serial.println(longitude, 6);
+}
+void get_gps_data()
+{
+  while (ss.available() > 0)
+  {
+    Serial.println("data received");
+    gps.encode(ss.read());
+    if (gps.location.isUpdated())
+    {
+      latitude = gps.location.lat();
+      longitude = gps.location.lng();
+    }
+  }
+}
+
 void get_imu_data()
 {
   AccX = (int16_t)read_register_spi(0x0C, GYRO_CS_1, true);
@@ -667,6 +702,29 @@ void get_imu_data()
   GyroX = GyroX - GyroErrorX;
   GyroY = GyroY - GyroErrorY;
   GyroZ = GyroZ - GyroErrorZ;
+}
+
+void Madgwick()
+{
+  filter.updateIMU(GyroX, GyroY, GyroZ, AccX, AccY, AccZ);
+
+  // print the heading, pitch and roll
+  mad_roll = filter.getRoll();
+  mad_pitch = filter.getPitch();
+  mad_heading = filter.getYaw();
+}
+
+void print_madgwick()
+{
+  Serial.println("Orientation: ");
+  Serial.print("heading: ");
+  Serial.print(mad_heading);
+  Serial.print(" ");
+  Serial.print("pitch: ");
+  Serial.print(mad_pitch);
+  Serial.print(" ");
+  Serial.print("roll: ");
+  Serial.println(mad_roll);
 }
 
 void calculate_IMU_error()
@@ -754,12 +812,12 @@ void calculate_IMU_error()
 
 void getBatteryStatus()
 {
-  batteryVoltage = ((analogRead(ADC_BATT_1)*vbat_multiplier*vbat_scale*3.3))/vbat_divider/1024;
-  batteryCurrent = analogRead(ADC_CURR_1)*3.3*ibata_scale/1024;
+  batteryVoltage = ((analogRead(ADC_BATT_1) * vbat_multiplier * vbat_scale * 3.3)) / vbat_divider / 1024;
+  batteryCurrent = analogRead(ADC_CURR_1) * 3.3 * ibata_scale / 1024;
 }
 void getCoreTemp()
 {
-  coreTemp = analogRead(ATEMP)/1024*3.3;
+  coreTemp = analogRead(ATEMP) / 1024 * 3.3;
 }
 
 void printBatteryStatus()
@@ -783,12 +841,14 @@ void setup()
 {
   pinMode(GYRO_CS_1, OUTPUT);
   pinMode(LED_1, OUTPUT);
+  ss.begin(9600);
+  filter.begin(1600);
 
   SPI_1.begin();
   SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
   Serial.begin(9600);
   sbus.begin(); // Initialize the SBUS object
-  delay(25); // just for safety
+  delay(25);    // just for safety
 
   // initialize bmi270 in spi mode
   if (!initialise_IMU())
@@ -801,14 +861,15 @@ void setup()
     }
   }
 
-  calculate_IMU_error();
+  //calculate_IMU_error();
 }
 
 void getCommands()
 {
 
   sbus.process(); // Process incoming SBUS data
-  if (sbus._channels[0] != 0) { // Check if a new SBUS packet has been received
+  if (sbus._channels[0] != 0)
+  { // Check if a new SBUS packet has been received
     // Extract channel values from the SBUS object
     channels[0] = sbus._channels[0];
     channels[1] = sbus._channels[1];
@@ -826,8 +887,7 @@ void getCommands()
     channels[13] = sbus._channels[13];
     channels[14] = sbus._channels[14];
     channels[15] = sbus._channels[15];
-}
-
+  }
 }
 
 void getDesiredState()
@@ -877,43 +937,42 @@ void controlPrintRate(uint16_t maxfreq)
 }
 
 void printRadioData()
-    {
-      
-    // Debugging output
-    Serial.print("Ch1: ");
-    Serial.print(channels[0]);
-    Serial.print(", Ch2: ");
-    Serial.print(channels[1]);
-    Serial.print(", Ch3: ");
-    Serial.print(channels[2]);
-    Serial.print(", Ch4: ");
-    Serial.print(channels[3]);
-    Serial.print(", Ch5: ");
-    Serial.print(channels[4]);
-    Serial.print(", Ch6: ");
-    Serial.print(channels[5]);
-    Serial.print(", Ch7: ");
-    Serial.print(channels[6]);
-    Serial.print(", Ch8: ");
-    Serial.print(channels[7]);
-    Serial.print(", Ch9: ");
-    Serial.print(channels[8]);
-    Serial.print(", Ch10: ");
-    Serial.print(channels[9]);
-    Serial.print(", Ch11: ");
-    Serial.print(channels[10]);
-    Serial.print(", Ch12: ");
-    Serial.print(channels[11]);
-    Serial.print(", Ch13: ");
-    Serial.print(channels[12]);
-    Serial.print(", Ch14: ");
-    Serial.print(channels[13]);
-    Serial.print(", Ch15: ");
-    Serial.print(channels[14]);
-    Serial.print(", Ch16: ");
-    Serial.print(channels[15]);
-    }
-    
+{
+
+  // Debugging output
+  Serial.print("Ch1: ");
+  Serial.print(channels[0]);
+  Serial.print(", Ch2: ");
+  Serial.print(channels[1]);
+  Serial.print(", Ch3: ");
+  Serial.print(channels[2]);
+  Serial.print(", Ch4: ");
+  Serial.print(channels[3]);
+  Serial.print(", Ch5: ");
+  Serial.print(channels[4]);
+  Serial.print(", Ch6: ");
+  Serial.print(channels[5]);
+  Serial.print(", Ch7: ");
+  Serial.print(channels[6]);
+  Serial.print(", Ch8: ");
+  Serial.print(channels[7]);
+  Serial.print(", Ch9: ");
+  Serial.print(channels[8]);
+  Serial.print(", Ch10: ");
+  Serial.print(channels[9]);
+  Serial.print(", Ch11: ");
+  Serial.print(channels[10]);
+  Serial.print(", Ch12: ");
+  Serial.print(channels[11]);
+  Serial.print(", Ch13: ");
+  Serial.print(channels[12]);
+  Serial.print(", Ch14: ");
+  Serial.print(channels[13]);
+  Serial.print(", Ch15: ");
+  Serial.print(channels[14]);
+  Serial.print(", Ch16: ");
+  Serial.print(channels[15]);
+}
 
 void loop()
 {
@@ -927,20 +986,24 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-  printRadioData();
-  // printDesiredState();
-  // printGyroData();
-  // printAccelData();
+  // printRadioData();
+  //  printDesiredState();
+  //  printGyroData();
+  //printAccelData();
   // printMagData();
   // printRollPitchYaw();
   // printPIDoutput();
   // printMotorCommands();
-   //printBatteryStatus();
+  // printBatteryStatus();
   // printCoreTemp();
   controlPrintRate(100);
 
   get_imu_data();
-  // Madgwick();
+  // To check if gps code is working fine
+  //get_gps_data();
+  //printGPSData();
+   Madgwick();
+  print_madgwick();
 
   getDesiredState();
 
