@@ -1,6 +1,8 @@
-#include <SoftwareSerial.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <EEPROM.h>
+#include "msp_protocol.h"
+
 
 #define RX PC7
 #define TX PC6
@@ -138,7 +140,7 @@ extern const char* const buildTime;  // "HH:MM:SS"
 #define MSP_PROTOCOL_VERSION                0
 
 #define API_VERSION_MAJOR                   1  // increment when major changes are made
-#define API_VERSION_MINOR                   42 // increment after a release, to set the version for all changes to go into the following release (if no changes to MSP are made between the releases, this can be reverted before the release)
+#define API_VERSION_MINOR                   41 // increment after a release, to set the version for all changes to go into the following release (if no changes to MSP are made between the releases, this can be reverted before the release)
 
 #define API_VERSION_LENGTH                  2
 
@@ -571,7 +573,7 @@ void sendMSPRequest(uint8_t type) {
   Serial.write(checksum);
 }
 
-uint8_t get_request()
+// uint8_t get_request()
 {
 
 }
@@ -645,7 +647,7 @@ void send_MSP_FC_VERSION()
   packet[0] = '$';
   packet[1] = 'M';
   packet[2] = '>';
-  packet[3] = 4;
+  packet[3] = 3;
   packet[4] = MSP_FC_VERSION;
   packet[5] = FC_VERSION_MAJOR;
   packet[6] = FC_VERSION_MINOR;
@@ -748,6 +750,20 @@ void send_MSP_BOARD_INFO()
   printPacket(packet,85);
 }
 
+void send_MSP_BUILD_INFO()
+{
+  packet[0] = '$';
+  packet[1] = 'M';
+  packet[2] = '>';
+  packet[3] = 3;
+  packet[4] = MSP_BUILD_INFO;
+  packet[5] = 4;
+  packet[6] = 1;
+  packet[7] = 0;
+  packet[8] = calculateChecksum(packet,8);
+
+  sendPacket(packet, 9);
+}
 
 void send_MSP_IDENT()
 {
@@ -1479,33 +1495,40 @@ void send_MSP_SERVO_CONF()// incomplete
 //  // Serial.print(cs);
 //  // Serial.println();
 }
-
+// complete
 //------------------------------------------------------------
+
+uint32_t pos = 0;
 
 void loop()
 {
   uint8_t response[64];
   uint8_t response_length = 0;
-  digitalWrite(PC8 , HIGH);
-  delay(100);
-  digitalWrite(PC8 , LOW);
-  delay(100);
+  // digitalWrite(PC8 , HIGH);
+  // delay(100);
+  // digitalWrite(PC8 , LOW);
+  // delay(100);
 if (Serial.available() > 0){
   
   while (Serial.available() > 0) {
     response[response_length++] = Serial.read();
+    eeprom_buffered_write_byte(pos,response[response_length-1]);
+    pos++;
   }
-  digitalWrite(PC8 , HIGH);
-  delay(1000);
-  digitalWrite(PC8 , LOW);
-  delay(1000);
+  
+    eeprom_buffered_write_byte(pos,0x11);
+    pos++;
+  digitalWrite(PC8 , !digitalRead(PC8));
+  // delay(1000);
+  // digitalWrite(PC8 , LOW);
+  // delay(1000);
 
   // For debugging
-  // Serial.print("Response: ");
-  for (int i = 0; i < response_length; i++) {
-    // Serial.print(response[i], HEX);
-    // Serial.print(" ");
-  }
+  // // Serial.print("Response: ");
+  // for (int i = 0; i < response_length; i++) {
+  //   // Serial.print(response[i], HEX);
+  //   // Serial.print(" ");
+  // }
   // Serial.println();
 
   // 0 = '$'
@@ -1517,10 +1540,37 @@ if (Serial.available() > 0){
   // N-1 = checksum
      uint8_t code = response[4];
   //  uint8_t code = MSP_IDENT;
-
+  // eeprom_buffered_write_byte(pos,code);
+  // eeprom_buffered_write_byte(pos+1,pos);
+  // pos = pos +2;
+  eeprom_buffer_flush();
+digitalWrite(PC8 , HIGH);
+  delay(100);
+  digitalWrite(PC8 , LOW);
+  delay(100);
     // Once received the data, Based on the code obtained, one of the following switch statements will work.
     switch(code)
     {
+      case MSP_API_VERSION:
+      send_MSP_API_VERSION();
+      break;
+
+      case MSP_FC_VARIANT:
+      send_MSP_FC_VARIANT();
+      break;
+
+      case MSP_FC_VERSION:
+      send_MSP_FC_VERSION();
+      break;
+
+      case MSP_BOARD_INFO:
+      send_MSP_BOARD_INFO();
+      break;
+
+      case MSP_BUILD_INFO:
+      send_MSP_BUILD_INFO();
+      break;
+      
       case MSP_IDENT :
       send_MSP_IDENT();
       break;
