@@ -54,6 +54,15 @@ int vbat_divider = 10;
 int vbat_multiplier = 1;
 HardwareSerial Serial1(PA3, PA2);
 SBUS sbus(Serial1);
+ int maxch[16] = {0};
+ int minch[16] = {2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000};
+
+const int sensorPin = PA3;  // pin that the sensor is attached to
+
+// variables:
+int sensorValue = 0;   // the sensor value
+int sensorMin = 2000;  // minimum sensor value
+int sensorMax = 0;     // maximum sensor value
 ////////////////////parameters/////////////
 
 #define THROTTLE_CH 2
@@ -862,6 +871,7 @@ void setup()
   }
 
   //calculate_IMU_error();
+    calibrateRadioData();
 }
 
 void getCommands()
@@ -887,6 +897,14 @@ void getCommands()
     channels[13] = sbus._channels[13];
     channels[14] = sbus._channels[14];
     channels[15] = sbus._channels[15];
+      
+      for (int i=0; i<16; i++){
+  // in case the sensor value is outside the range seen during calibration
+  channels[i] = constrain(channels[i], minch[i], maxch[i]);
+
+  // apply the calibration to the sensor reading
+  channels[i] = map(channels[i], minch[i], maxch[i], 0, 255);
+ }
   }
 }
 
@@ -974,6 +992,62 @@ void printRadioData()
   Serial.print(channels[15]);
 }
 
+void calibrateRadioData()
+    {
+      current_time = millis();
+      while (millis() - current_time < 10000) {
+Serial.print("Move all the sticks to their maximum and minimum values ");
+
+Serial.println(millis() - current_time);
+sbus.process(); // Process incoming SBUS data
+  if (sbus._channels[0] != 0) {
+    channels[0] = sbus._channels[0];
+    channels[1] = sbus._channels[1];
+    channels[2] = sbus._channels[2];
+    channels[3] = sbus._channels[3];
+    channels[4] = sbus._channels[4];
+    channels[5] = sbus._channels[5];
+    channels[6] = sbus._channels[6];
+    channels[7] = sbus._channels[7];
+    channels[8] = sbus._channels[8];
+    channels[9] = sbus._channels[9];
+    channels[10] = sbus._channels[10];
+    channels[11] = sbus._channels[11];
+    channels[12] = sbus._channels[12];
+    channels[13] = sbus._channels[13];
+    channels[14] = sbus._channels[14];
+    channels[15] = sbus._channels[15];
+    
+for (int i=0; i<16; i++){
+    // record the maximum sensor value
+    if (channels[i] > maxch[i]) {
+      maxch[i] = channels[i];
+    }
+
+    // record the minimum sensor value
+    if (channels[i] < minch[i]) {
+      minch[i] = channels[i];
+    }
+    }
+      }
+      }
+Serial.print("int maxch[16] = {");
+Serial.print(maxch[0]);
+  for (int i=1; i<16; i++){
+    Serial.print(", ");    
+    Serial.print(maxch[i]);
+  }
+  Serial.println("}");
+  Serial.print("int minch[16] = {");
+Serial.print(minch[0]);
+  for (int i=1; i<16; i++){
+    Serial.print(", ");    
+    Serial.print(minch[i]);
+  }
+  Serial.print("}");
+    
+   }
+
 void loop()
 {
   prev_time = current_time;
@@ -986,7 +1060,7 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-  // printRadioData();
+  printRadioData();
   //  printDesiredState();
   //  printGyroData();
   //printAccelData();
@@ -994,7 +1068,7 @@ void loop()
   // printRollPitchYaw();
   // printPIDoutput();
   // printMotorCommands();
-  // printBatteryStatus();
+  printBatteryStatus();
   // printCoreTemp();
   controlPrintRate(100);
 
