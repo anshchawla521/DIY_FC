@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include "src/SBUS/SBUS.h"
+#include "SBUS.h"
 #include <TinyGPS++.h>
 #include "src/MadgwickAHRS/src/MadgwickAHRS.h"
 
