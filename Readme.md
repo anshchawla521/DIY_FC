@@ -16,6 +16,7 @@ Will be uploaded soon
 - [ ] Write documentation for getting started with stm32 programming using arduino ide
 - [ ] Write a function to find the desired state from user
 - [ ] Add battery capacity , voltage ,current meter
+- [x] Write and test code for PID loop in stm32
 
 ### Ashok
 
@@ -56,7 +57,7 @@ Will be uploaded soon
 
 ### Anubhav
 
-- [ ] Write and test code for PID loop in stm32
+
 - [ ] write code for interfacing SDcard slot present on speedybee
 - [ ] Adapt the PID code to the main code
 
@@ -66,3 +67,10 @@ Will be uploaded soon
 - Pressure sensor SPl06
 - IMU - BMI270
 - OSD chip - AT7456e
+
+## Useful Resources
+
+- https://www.youtube.com/watch?v=fNLxHWd0Bvg
+- https://www.st.com/resource/en/reference_manual/dm00031020-stm32f405-415-stm32f407-417-stm32f427-437-and-stm32f429-439-advanced-arm-based-32-bit-mcus-stmicroelectronics.pdf
+- https://www.youtube.com/watch?v=AjN58ceQaF4
+- https://github.com/stm32duino/Arduino_Core_STM32/wiki/API

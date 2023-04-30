@@ -1,6 +1,21 @@
+//========================================================================================================================//
+
+// CREDITS + SPECIAL THANKS
+/*
+Some elements inspired by:
+http://www.brokking.net/ymfc-32_main.html
+
+Madgwick filter function adapted from:
+https://github.com/arduino-libraries/MadgwickAHRS
+
+PID implementation from drehmVtol:
+https://github.dev/nickrehm/dRehmFlight/
+
+
+*/
+
 #include <SPI.h>
 #include "src/SBUS/SBUS.h"
-#include "SBUS.h"
 #include <TinyGPS++.h>
 #include "src/MadgwickAHRS/src/MadgwickAHRS.h"
 
@@ -55,15 +70,15 @@ int vbat_divider = 10;
 int vbat_multiplier = 1;
 HardwareSerial Serial1(PA3, PA2);
 SBUS sbus(Serial1);
- int maxch[16] = {0};
- int minch[16] = {2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000};
+int maxch[16] = {0};
+int minch[16] = {2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000};
 
-const int sensorPin = PA3;  // pin that the sensor is attached to
+const int sensorPin = PA3; // pin that the sensor is attached to
 
 // variables:
-int sensorValue = 0;   // the sensor value
-int sensorMin = 2000;  // minimum sensor value
-int sensorMax = 0;     // maximum sensor value
+int sensorValue = 0;  // the sensor value
+int sensorMin = 2000; // minimum sensor value
+int sensorMax = 0;    // maximum sensor value
 ////////////////////parameters/////////////
 
 #define THROTTLE_CH 2
@@ -109,6 +124,8 @@ float AccX_prev, AccY_prev, AccZ_prev;
 float GyroX, GyroY, GyroZ;
 float GyroX_prev, GyroY_prev, GyroZ_prev;
 
+float roll_IMU, pitch_IMU, yaw_IMU;
+
 float AccErrorX = -0.01;
 float AccErrorY = -0.01;
 float AccErrorZ = 0.00;
@@ -117,6 +134,43 @@ float GyroErrorY = 0.01;
 float GyroErrorZ = -0.03;
 
 float thro_des, roll_des, pitch_des, yaw_des;
+
+// Controller parameters (take note of defaults before modifying!):
+float i_limit = 25.0;  // Integrator saturation level, mostly for safety (default 25.0)
+float maxRoll = 30.0;  // Max roll angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
+float maxPitch = 30.0; // Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
+float maxYaw = 160.0;  // Max yaw rate in deg/sec
+
+float Kp_roll_angle = 0.2;   // Roll P-gain - angle mode
+float Ki_roll_angle = 0.3;   // Roll I-gain - angle mode
+float Kd_roll_angle = 0.05;  // Roll D-gain - angle mode (has no effect on controlANGLE2)
+float B_loop_roll = 0.9;     // Roll damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
+float Kp_pitch_angle = 0.2;  // Pitch P-gain - angle mode
+float Ki_pitch_angle = 0.3;  // Pitch I-gain - angle mode
+float Kd_pitch_angle = 0.05; // Pitch D-gain - angle mode (has no effect on controlANGLE2)
+float B_loop_pitch = 0.9;    // Pitch damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
+
+float Kp_roll_rate = 0.15;    // Roll P-gain - rate mode
+float Ki_roll_rate = 0.2;     // Roll I-gain - rate mode
+float Kd_roll_rate = 0.0002;  // Roll D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
+float Kp_pitch_rate = 0.15;   // Pitch P-gain - rate mode
+float Ki_pitch_rate = 0.2;    // Pitch I-gain - rate mode
+float Kd_pitch_rate = 0.0002; // Pitch D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
+
+float Kp_yaw = 0.3;     // Yaw P-gain
+float Ki_yaw = 0.05;    // Yaw I-gain
+float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, motors will begin to overheat!)
+
+// Controller:
+float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_il, integral_roll_ol, integral_roll_prev, integral_roll_prev_il, integral_roll_prev_ol, derivative_roll, roll_PID = 0;
+float error_pitch, error_pitch_prev, pitch_des_prev, integral_pitch, integral_pitch_il, integral_pitch_ol, integral_pitch_prev, integral_pitch_prev_il, integral_pitch_prev_ol, derivative_pitch, pitch_PID = 0;
+float error_yaw, error_yaw_prev, integral_yaw, integral_yaw_prev, derivative_yaw, yaw_PID = 0;
+
+// Mixer
+float m1_command_scaled, m2_command_scaled, m3_command_scaled, m4_command_scaled, m5_command_scaled, m6_command_scaled;
+int m1_command_PWM, m2_command_PWM, m3_command_PWM, m4_command_PWM, m5_command_PWM, m6_command_PWM;
+float s1_command_scaled, s2_command_scaled, s3_command_scaled, s4_command_scaled, s5_command_scaled, s6_command_scaled, s7_command_scaled;
+int s1_command_PWM, s2_command_PWM, s3_command_PWM, s4_command_PWM, s5_command_PWM, s6_command_PWM, s7_command_PWM;
 
 const uint8_t bmi270_config_file[] = {
     0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x3d, 0xb1, 0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x91, 0x03, 0x80, 0x2e, 0xbc,
@@ -719,22 +773,22 @@ void Madgwick()
   filter.updateIMU(GyroX, GyroY, GyroZ, AccX, AccY, AccZ);
 
   // print the heading, pitch and roll
-  mad_roll = filter.getRoll();
-  mad_pitch = filter.getPitch();
-  mad_heading = filter.getYaw();
+  roll_IMU = filter.getRoll();
+  pitch_IMU = filter.getPitch();
+  yaw_IMU = filter.getYaw();
 }
 
 void print_madgwick()
 {
   Serial.println("Orientation: ");
   Serial.print("heading: ");
-  Serial.print(mad_heading);
+  Serial.print(yaw_IMU);
   Serial.print(" ");
   Serial.print("pitch: ");
-  Serial.print(mad_pitch);
+  Serial.print(pitch_IMU);
   Serial.print(" ");
   Serial.print("roll: ");
-  Serial.println(mad_roll);
+  Serial.println(roll_IMU);
 }
 
 void calculate_IMU_error()
@@ -871,8 +925,8 @@ void setup()
     }
   }
 
-  //calculate_IMU_error();
-    calibrateRadioData();
+  // calculate_IMU_error();
+  calibrateRadioData();
 }
 
 void getCommands()
@@ -898,14 +952,15 @@ void getCommands()
     channels[13] = sbus._channels[13];
     channels[14] = sbus._channels[14];
     channels[15] = sbus._channels[15];
-      
-      for (int i=0; i<16; i++){
-  // in case the sensor value is outside the range seen during calibration
-  channels[i] = constrain(channels[i], minch[i], maxch[i]);
 
-  // apply the calibration to the sensor reading
-  channels[i] = map(channels[i], minch[i], maxch[i], 0, 255);
- }
+    for (int i = 0; i < 16; i++)
+    {
+      // in case the sensor value is outside the range seen during calibration
+      channels[i] = constrain(channels[i], minch[i], maxch[i]);
+
+      // apply the calibration to the sensor reading
+      channels[i] = map(channels[i], minch[i], maxch[i], 1000, 2000);
+    }
   }
 }
 
@@ -924,7 +979,7 @@ void getDesiredState()
   pitch_des = constrain(normalized_pitch, -1.0, 1.0) * PITCH_RATE;
   roll_des = constrain(normalized_pitch, -1.0, 1.0) * ROLL_RATE;
   yaw_des = constrain(normalized_pitch, -1.0, 1.0) * YAW_RATE;
-  thro_des = constrain(normalized_throttle, 0, 1.0);
+  thro_des = constrain(normalized_throttle, 0, 1.0) ;
 }
 
 void printDesiredState()
@@ -953,6 +1008,62 @@ void controlPrintRate(uint16_t maxfreq)
   {
     print_authorisation = false;
   }
+}
+
+
+void controlMixer() {
+  //DESCRIPTION: Mixes scaled commands from PID controller to actuator outputs based on vehicle configuration
+  /*
+   * Takes roll_PID, pitch_PID, and yaw_PID computed from the PID controller and appropriately mixes them for the desired
+   * vehicle configuration. For example on a quadcopter, the left two motors should have +roll_PID while the right two motors
+   * should have -roll_PID. Front two should have -pitch_PID and the back two should have +pitch_PID etc... every motor has
+   * normalized (0 to 1) thro_des command for throttle control. Can also apply direct unstabilized commands from the transmitter with 
+   * roll_passthru, pitch_passthru, and yaw_passthu. mX_command_scaled and sX_command scaled variables are used in scaleCommands() 
+   * in preparation to be sent to the motor ESCs and servos.
+   * 
+   *Relevant variables:
+   *thro_des - direct thottle control
+   *roll_PID, pitch_PID, yaw_PID - stabilized axis variables
+   *roll_passthru, pitch_passthru, yaw_passthru - direct unstabilized command passthrough
+   *channel_6_pwm - free auxillary channel, can be used to toggle things with an 'if' statement
+   */
+   
+  //Quad mixing - EXAMPLE
+  
+  // all values like thro_des , pitch_PID , roll_PID , yaw_PID are tried to be in between -1 and 1 
+  m1_command_scaled = thro_des - pitch_PID + roll_PID + yaw_PID; //Front Left
+  m2_command_scaled = thro_des - pitch_PID - roll_PID - yaw_PID; //Front Right
+  m3_command_scaled = thro_des + pitch_PID - roll_PID + yaw_PID; //Back Right
+  m4_command_scaled = thro_des + pitch_PID + roll_PID - yaw_PID; //Back Left
+  m5_command_scaled = 0;
+  m6_command_scaled = 0;
+
+ 
+}
+
+
+
+
+void commandMotors()
+{ /*DESCRIPTION : This function constraints and transmits the values to the ESC*/
+  m1_command_PWM = m1_command_scaled*1000 + 1000;
+  m2_command_PWM = m2_command_scaled*1000 + 1000;
+  m3_command_PWM = m3_command_scaled*1000 + 1000;
+  m4_command_PWM = m4_command_scaled*1000 + 1000;
+  m5_command_PWM = m5_command_scaled*1000 + 1000;
+  m6_command_PWM = m6_command_scaled*1000 + 1000;
+  //Constrain commands to motors to the max and min limits
+  m1_command_PWM = constrain(m1_command_PWM, 1000, 2000);
+  m2_command_PWM = constrain(m2_command_PWM, 1000, 2000);
+  m3_command_PWM = constrain(m3_command_PWM, 1000, 2000);
+  m4_command_PWM = constrain(m4_command_PWM, 1000, 2000);
+  m5_command_PWM = constrain(m5_command_PWM, 1000, 2000);
+  m6_command_PWM = constrain(m6_command_PWM, 1000, 2000);
+
+
+  // NOW generate PWM pulse for motors
+
+
 }
 
 void printRadioData()
@@ -993,61 +1104,123 @@ void printRadioData()
   Serial.print(channels[15]);
 }
 
+void controlANGLE()
+{
+  // DESCRIPTION: Computes control commands based on state error (angle)
+  /*
+   * Basic PID control to stablize on angle setpoint based on desired states roll_des, pitch_des, and yaw_des computed in
+   * getDesState(). Error is simply the desired state minus the actual state (ex. roll_des - roll_IMU). Two safety features
+   * are implimented here regarding the I terms. The I terms are saturated within specified limits on startup to prevent
+   * excessive buildup. This can be seen by holding the vehicle at an angle and seeing the motors ramp up on one side until
+   * they've maxed out throttle...saturating I to a specified limit fixes this. The second feature defaults the I terms to 0
+   * if the throttle is at the minimum setting. This means the motors will not start spooling up on the ground, and the I
+   * terms will always start from 0 on takeoff. This function updates the variables roll_PID, pitch_PID, and yaw_PID which
+   * can be thought of as 1-D stablized signals. They are mixed to the configuration of the vehicle in controlMixer().
+   */
+
+  // Roll
+  error_roll = roll_des - roll_IMU;
+  integral_roll = integral_roll_prev + error_roll * dt;
+  if (channels[THROTTLE_CH] < 1060)
+  { // Don't let integrator build if throttle is too low
+    integral_roll = 0;
+  }
+  integral_roll = constrain(integral_roll, -i_limit, i_limit); // Saturate integrator to prevent unsafe buildup
+  derivative_roll = GyroX;
+  roll_PID = 0.01 * (Kp_roll_angle * error_roll + Ki_roll_angle * integral_roll - Kd_roll_angle * derivative_roll); // Scaled by .01 to bring within -1 to 1 range
+
+  // Pitch
+  error_pitch = pitch_des - pitch_IMU;
+  integral_pitch = integral_pitch_prev + error_pitch * dt;
+  if (channels[THROTTLE_CH] < 1060)
+  { // Don't let integrator build if throttle is too low
+    integral_pitch = 0;
+  }
+  integral_pitch = constrain(integral_pitch, -i_limit, i_limit); // Saturate integrator to prevent unsafe buildup
+  derivative_pitch = GyroY;
+  pitch_PID = .01 * (Kp_pitch_angle * error_pitch + Ki_pitch_angle * integral_pitch - Kd_pitch_angle * derivative_pitch); // Scaled by .01 to bring within -1 to 1 range
+
+  // Yaw, stablize on rate from GyroZ
+  error_yaw = yaw_des - GyroZ;
+  integral_yaw = integral_yaw_prev + error_yaw * dt;
+  if (channels[THROTTLE_CH] < 1060)
+  { // Don't let integrator build if throttle is too low
+    integral_yaw = 0;
+  }
+  integral_yaw = constrain(integral_yaw, -i_limit, i_limit); // Saturate integrator to prevent unsafe buildup
+  derivative_yaw = (error_yaw - error_yaw_prev) / dt;
+  yaw_PID = .01 * (Kp_yaw * error_yaw + Ki_yaw * integral_yaw + Kd_yaw * derivative_yaw); // Scaled by .01 to bring within -1 to 1 range
+
+  // Update roll variables
+  integral_roll_prev = integral_roll;
+  // Update pitch variables
+  integral_pitch_prev = integral_pitch;
+  // Update yaw variables
+  error_yaw_prev = error_yaw;
+  integral_yaw_prev = integral_yaw;
+}
+
 void calibrateRadioData()
+{
+  current_time = millis();
+  while (millis() - current_time < 10000)
+  {
+    Serial.print("Move all the sticks to their maximum and minimum values ");
+
+    Serial.println(millis() - current_time);
+    sbus.process(); // Process incoming SBUS data
+    if (sbus._channels[0] != 0)
     {
-      current_time = millis();
-      while (millis() - current_time < 10000) {
-Serial.print("Move all the sticks to their maximum and minimum values ");
+      channels[0] = sbus._channels[0];
+      channels[1] = sbus._channels[1];
+      channels[2] = sbus._channels[2];
+      channels[3] = sbus._channels[3];
+      channels[4] = sbus._channels[4];
+      channels[5] = sbus._channels[5];
+      channels[6] = sbus._channels[6];
+      channels[7] = sbus._channels[7];
+      channels[8] = sbus._channels[8];
+      channels[9] = sbus._channels[9];
+      channels[10] = sbus._channels[10];
+      channels[11] = sbus._channels[11];
+      channels[12] = sbus._channels[12];
+      channels[13] = sbus._channels[13];
+      channels[14] = sbus._channels[14];
+      channels[15] = sbus._channels[15];
 
-Serial.println(millis() - current_time);
-sbus.process(); // Process incoming SBUS data
-  if (sbus._channels[0] != 0) {
-    channels[0] = sbus._channels[0];
-    channels[1] = sbus._channels[1];
-    channels[2] = sbus._channels[2];
-    channels[3] = sbus._channels[3];
-    channels[4] = sbus._channels[4];
-    channels[5] = sbus._channels[5];
-    channels[6] = sbus._channels[6];
-    channels[7] = sbus._channels[7];
-    channels[8] = sbus._channels[8];
-    channels[9] = sbus._channels[9];
-    channels[10] = sbus._channels[10];
-    channels[11] = sbus._channels[11];
-    channels[12] = sbus._channels[12];
-    channels[13] = sbus._channels[13];
-    channels[14] = sbus._channels[14];
-    channels[15] = sbus._channels[15];
-    
-for (int i=0; i<16; i++){
-    // record the maximum sensor value
-    if (channels[i] > maxch[i]) {
-      maxch[i] = channels[i];
-    }
+      for (int i = 0; i < 16; i++)
+      {
+        // record the maximum sensor value
+        if (channels[i] > maxch[i])
+        {
+          maxch[i] = channels[i];
+        }
 
-    // record the minimum sensor value
-    if (channels[i] < minch[i]) {
-      minch[i] = channels[i];
-    }
-    }
+        // record the minimum sensor value
+        if (channels[i] < minch[i])
+        {
+          minch[i] = channels[i];
+        }
       }
-      }
-Serial.print("int maxch[16] = {");
-Serial.print(maxch[0]);
-  for (int i=1; i<16; i++){
-    Serial.print(", ");    
+    }
+  }
+  Serial.print("int maxch[16] = {");
+  Serial.print(maxch[0]);
+  for (int i = 1; i < 16; i++)
+  {
+    Serial.print(", ");
     Serial.print(maxch[i]);
   }
   Serial.println("}");
   Serial.print("int minch[16] = {");
-Serial.print(minch[0]);
-  for (int i=1; i<16; i++){
-    Serial.print(", ");    
+  Serial.print(minch[0]);
+  for (int i = 1; i < 16; i++)
+  {
+    Serial.print(", ");
     Serial.print(minch[i]);
   }
   Serial.print("}");
-    
-   }
+}
 
 void loop()
 {
@@ -1064,25 +1237,25 @@ void loop()
   printRadioData();
   //  printDesiredState();
   //  printGyroData();
-  //printAccelData();
+  // printAccelData();
   // printMagData();
   // printRollPitchYaw();
   // printPIDoutput();
   // printMotorCommands();
   printBatteryStatus();
   // printCoreTemp();
+  // print_madgwick();
   controlPrintRate(100);
 
   get_imu_data();
   // To check if gps code is working fine
-  //get_gps_data();
-  //printGPSData();
-   Madgwick();
-  print_madgwick();
+  // get_gps_data();
+  // printGPSData();
+  Madgwick();
 
   getDesiredState();
 
-  // controlAngle(); // PID loops goes inside this
+  controlANGLE(); // PID loops goes inside this
   // controlMixer();
   //
   // log_data();
