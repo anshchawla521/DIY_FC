@@ -90,6 +90,19 @@ int sensorMax = 0;    // maximum sensor value
 #define PITCH_RATE 200 // in deg/s // if want variable rates / on switch then use uint16_t data type
 #define YAW_RATE 190   // in deg/s
 
+// Uncomment only one full scale gyro range (deg/sec)
+// #define GYRO_125DPS
+// #define GYRO_250DPS
+// #define GYRO_500DPS
+// #define GYRO_1000DPS
+#define GYRO_2000DPS
+
+// Uncomment only one full scale accelerometer range (G's)
+// #define ACCEL_2G
+// #define ACCEL_4G
+#define ACCEL_8G
+// #define ACCEL_16G
+
 SPIClass SPI_1(SPI_MOSI_1, SPI_MISO_1, SPI_SCK_1);
 // HardwareSerial Serial(Serial_RX_6, Serial_TX_6);
 
@@ -658,8 +671,40 @@ bool initialise_IMU()
   delay(2);
 
   write_register_spi(0x7D, GYRO_CS_1, 0x0E); // enable gyro , acc , temp
-  write_register_spi(0x40, GYRO_CS_1, 0xAc); // 1600hz data rate +- 8g
-  write_register_spi(0x42, GYRO_CS_1, 0xAc); // 1600hz +- 2000dps
+  write_register_spi(0x40, GYRO_CS_1, 0xAc); // 1600hz data rate
+  write_register_spi(0x42, GYRO_CS_1, 0xAc); // 1600hz
+
+#if defined(ACCEL_16G)
+  write_register_spi(0x41, GYRO_CS_1, 0x03);
+#define ACCEL_SCALE_FACTOR 2048
+#elif defined(ACCEL_8G)
+  write_register_spi(0x41, GYRO_CS_1, 0x02);
+#define ACCEL_SCALE_FACTOR 4096
+#elif defined(ACCEL_4G)
+  write_register_spi(0x41, GYRO_CS_1, 0x01);
+#define ACCEL_SCALE_FACTOR 8192
+#elif defined(ACCEL_2G)
+  write_register_spi(0x41, GYRO_CS_1, 0x00);
+#define ACCEL_SCALE_FACTOR 16384
+#endif
+
+#if defined(GYRO_2000DPS)
+  write_register_spi(0x43, GYRO_CS_1, 0x00);
+#define GYRO_SCALE_FACTOR 16.384
+#elif defined(GYRO_1000DPS)
+  write_register_spi(0x43, GYRO_CS_1, 0x01);
+#define GYRO_SCALE_FACTOR 32.768
+#elif defined(GYRO_500DPS)
+  write_register_spi(0x43, GYRO_CS_1, 0x02);
+#define GYRO_SCALE_FACTOR 65.536
+#elif defined(GYRO_250DPS)
+  write_register_spi(0x43, GYRO_CS_1, 0x03);
+#define GYRO_SCALE_FACTOR 131.072
+#elif defined(GYRO_125DPS)
+  write_register_spi(0x43, GYRO_CS_1, 0x04);
+#define GYRO_SCALE_FACTOR 262.144
+#endif
+
   write_register_spi(0x7C, GYRO_CS_1, 0x02);
   delay(40); // data sheet recommends 20
   if (read_register_spi(0x21, GYRO_CS_1) != 0x01)
@@ -743,7 +788,7 @@ void get_imu_data()
   // the raw values are in 2's complement form so convert to have to convert to signed integer and then to float
 
   // the raw data values are obtained and in the initialization section we set the range as +- 8g so to get acc in terms of g divide by ((2^16 )/16)
-#define ACCEL_SCALE_FACTOR 4096
+
   AccX /= ACCEL_SCALE_FACTOR;
   AccY /= ACCEL_SCALE_FACTOR;
   AccZ /= ACCEL_SCALE_FACTOR;
@@ -758,7 +803,7 @@ void get_imu_data()
   // the raw values are in 2's complement form
 
   // the raw data values are obtained and in the initialization section we set the range as +- 2000dps so to get acc in terms of g divide by ((2^16 )/4000)
-#define GYRO_SCALE_FACTOR 16.384
+
   GyroX /= GYRO_SCALE_FACTOR;
   GyroY /= GYRO_SCALE_FACTOR;
   GyroZ /= GYRO_SCALE_FACTOR;
@@ -979,7 +1024,7 @@ void getDesiredState()
   pitch_des = constrain(normalized_pitch, -1.0, 1.0) * PITCH_RATE;
   roll_des = constrain(normalized_pitch, -1.0, 1.0) * ROLL_RATE;
   yaw_des = constrain(normalized_pitch, -1.0, 1.0) * YAW_RATE;
-  thro_des = constrain(normalized_throttle, 0, 1.0) ;
+  thro_des = constrain(normalized_throttle, 0, 1.0);
 }
 
 void printDesiredState()
@@ -1010,49 +1055,44 @@ void controlPrintRate(uint16_t maxfreq)
   }
 }
 
-
-void controlMixer() {
-  //DESCRIPTION: Mixes scaled commands from PID controller to actuator outputs based on vehicle configuration
+void controlMixer()
+{
+  // DESCRIPTION: Mixes scaled commands from PID controller to actuator outputs based on vehicle configuration
   /*
    * Takes roll_PID, pitch_PID, and yaw_PID computed from the PID controller and appropriately mixes them for the desired
    * vehicle configuration. For example on a quadcopter, the left two motors should have +roll_PID while the right two motors
    * should have -roll_PID. Front two should have -pitch_PID and the back two should have +pitch_PID etc... every motor has
-   * normalized (0 to 1) thro_des command for throttle control. Can also apply direct unstabilized commands from the transmitter with 
-   * roll_passthru, pitch_passthru, and yaw_passthu. mX_command_scaled and sX_command scaled variables are used in scaleCommands() 
+   * normalized (0 to 1) thro_des command for throttle control. Can also apply direct unstabilized commands from the transmitter with
+   * roll_passthru, pitch_passthru, and yaw_passthu. mX_command_scaled and sX_command scaled variables are used in scaleCommands()
    * in preparation to be sent to the motor ESCs and servos.
-   * 
+   *
    *Relevant variables:
    *thro_des - direct thottle control
    *roll_PID, pitch_PID, yaw_PID - stabilized axis variables
    *roll_passthru, pitch_passthru, yaw_passthru - direct unstabilized command passthrough
    *channel_6_pwm - free auxillary channel, can be used to toggle things with an 'if' statement
    */
-   
-  //Quad mixing - EXAMPLE
-  
-  // all values like thro_des , pitch_PID , roll_PID , yaw_PID are tried to be in between -1 and 1 
-  m1_command_scaled = thro_des - pitch_PID + roll_PID + yaw_PID; //Front Left
-  m2_command_scaled = thro_des - pitch_PID - roll_PID - yaw_PID; //Front Right
-  m3_command_scaled = thro_des + pitch_PID - roll_PID + yaw_PID; //Back Right
-  m4_command_scaled = thro_des + pitch_PID + roll_PID - yaw_PID; //Back Left
+
+  // Quad mixing - EXAMPLE
+
+  // all values like thro_des , pitch_PID , roll_PID , yaw_PID are tried to be in between -1 and 1
+  m1_command_scaled = thro_des - pitch_PID + roll_PID + yaw_PID; // Front Left
+  m2_command_scaled = thro_des - pitch_PID - roll_PID - yaw_PID; // Front Right
+  m3_command_scaled = thro_des + pitch_PID - roll_PID + yaw_PID; // Back Right
+  m4_command_scaled = thro_des + pitch_PID + roll_PID - yaw_PID; // Back Left
   m5_command_scaled = 0;
   m6_command_scaled = 0;
-
- 
 }
-
-
-
 
 void commandMotors()
 { /*DESCRIPTION : This function constraints and transmits the values to the ESC*/
-  m1_command_PWM = m1_command_scaled*1000 + 1000;
-  m2_command_PWM = m2_command_scaled*1000 + 1000;
-  m3_command_PWM = m3_command_scaled*1000 + 1000;
-  m4_command_PWM = m4_command_scaled*1000 + 1000;
-  m5_command_PWM = m5_command_scaled*1000 + 1000;
-  m6_command_PWM = m6_command_scaled*1000 + 1000;
-  //Constrain commands to motors to the max and min limits
+  m1_command_PWM = m1_command_scaled * 1000 + 1000;
+  m2_command_PWM = m2_command_scaled * 1000 + 1000;
+  m3_command_PWM = m3_command_scaled * 1000 + 1000;
+  m4_command_PWM = m4_command_scaled * 1000 + 1000;
+  m5_command_PWM = m5_command_scaled * 1000 + 1000;
+  m6_command_PWM = m6_command_scaled * 1000 + 1000;
+  // Constrain commands to motors to the max and min limits
   m1_command_PWM = constrain(m1_command_PWM, 1000, 2000);
   m2_command_PWM = constrain(m2_command_PWM, 1000, 2000);
   m3_command_PWM = constrain(m3_command_PWM, 1000, 2000);
@@ -1060,10 +1100,7 @@ void commandMotors()
   m5_command_PWM = constrain(m5_command_PWM, 1000, 2000);
   m6_command_PWM = constrain(m6_command_PWM, 1000, 2000);
 
-
   // NOW generate PWM pulse for motors
-
-
 }
 
 void printRadioData()
