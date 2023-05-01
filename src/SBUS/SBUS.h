@@ -15,6 +15,8 @@ class SBUS {
 		void begin();
 		void process();
 		volatile int _channels[18];
+		volatile bool _failsafe;
+		volatile bool _framelost;
 	private:
 		HardwareSerial & _serial;
 };

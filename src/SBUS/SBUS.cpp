@@ -47,6 +47,8 @@ void SBUS::process() {
 
 			((buffer[23])      & 0x0001) ? _channels[16] = 2047: _channels[16] = 0;
 			((buffer[23] >> 1) & 0x0001) ? _channels[17] = 2047: _channels[17] = 0;
+			_framelost = ((buffer[23]) & 0x0004) ? true:false;
+			_failsafe =  ((buffer[23]) & 0x0008) ? true:false;
 		}
 	}
 }
