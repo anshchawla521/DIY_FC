@@ -19,7 +19,7 @@ https://github.dev/nickrehm/dRehmFlight/
 #include <TinyGPS++.h>
 #include "src/MadgwickAHRS/src/MadgwickAHRS.h"
 
-//////////////// parameters taken directly from betaflight using resource command//////////////
+/*                       parameters taken directly from betaflight using resource command                         */
 #define BEEPER_1 PC5
 #define MOTOR_1 PB6
 #define MOTOR_2 PB7
@@ -62,29 +62,36 @@ https://github.dev/nickrehm/dRehmFlight/
 #define OSD_CS_1 PB12
 #define GYRO_EXTI_1 PC4
 #define GYRO_CS_1 PA4
-///////////////////////////parameters end///////////////
-////////////////////paramters from dump//////////////
+
+/*                                       paramters from dump                                      */
 int vbat_scale = 110;
 int ibata_scale = 386;
 int vbat_divider = 10;
 int vbat_multiplier = 1;
+
+// variables:
 HardwareSerial Serial1(PA3, PA2);
 SBUS sbus(Serial1);
 int maxch[16] = {0};
 int minch[16] = {2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000};
 
-const int sensorPin = PA3; // pin that the sensor is attached to
-
-// variables:
 int sensorValue = 0;  // the sensor value
 int sensorMin = 2000; // minimum sensor value
 int sensorMax = 0;    // maximum sensor value
 ////////////////////parameters/////////////
 
+/*                                      CHANNEL MAPPINGS                                             */
 #define THROTTLE_CH 2
 #define ROLL_CH 0
 #define PITCH_CH 1
 #define YAW_CH 3
+#define PREARM_CH 4
+#define ARM_CH 5
+#define MODES_CH 6
+
+/*                                        FLIGHT MODES                                                 */
+
+#define STABALIZE 0
 
 #define ROLL_RATE 200  // in deg/s
 #define PITCH_RATE 200 // in deg/s // if want variable rates / on switch then use uint16_t data type
@@ -116,7 +123,7 @@ float dt;
 bool print_authorisation = false;
 
 int channels[16] = {0};
-
+byte flight_mode = STABALIZE;
 ///////////////////////////////////GPS related Data
 HardwareSerial ss(PC7, PC6);
 float latitude = 0;
@@ -974,6 +981,25 @@ void setup()
   calibrateRadioData();
 }
 
+void handelFlightMode()
+{
+  // example on how to add flight modes
+  if (channels[MODES_CH] >= 1800)
+  {
+    controlANGLE();
+    flight_mode = STABALIZE;
+  }
+  else if (channels[MODES_CH] < 1800 && channels[MODES_CH] >= 1500)
+  {
+    controlANGLE();
+    flight_mode = STABALIZE;
+  }
+  else
+  {
+    controlANGLE();
+    flight_mode = STABALIZE;
+  }
+}
 void getCommands()
 {
 
@@ -1292,8 +1318,8 @@ void loop()
 
   getDesiredState();
 
-  controlANGLE(); // PID loops goes inside this
-  // controlMixer();
+  handelFlightMode(); // PID loops goes inside this
+  controlMixer();
   //
   // log_data();
   //
