@@ -123,6 +123,8 @@ float dt;
 bool print_authorisation = false;
 
 int channels[16] = {0};
+bool failsafe = false;
+bool framelost = false;
 byte flight_mode = STABALIZE;
 ///////////////////////////////////GPS related Data
 HardwareSerial ss(PC7, PC6);
@@ -1004,7 +1006,7 @@ void getCommands()
 {
 
   sbus.process(); // Process incoming SBUS data
-  if (sbus._channels[0] != 0)
+  if (sbus._channels[0] != 0 && !framelost )
   { // Check if a new SBUS packet has been received
     // Extract channel values from the SBUS object
     channels[0] = sbus._channels[0];
@@ -1023,6 +1025,8 @@ void getCommands()
     channels[13] = sbus._channels[13];
     channels[14] = sbus._channels[14];
     channels[15] = sbus._channels[15];
+    failsafe = sbus._failsafe;
+    framelost = sbus._framelost;
 
     for (int i = 0; i < 16; i++)
     {
@@ -1285,6 +1289,22 @@ void calibrateRadioData()
   Serial.print("}");
 }
 
+void throttleCut()
+{
+  
+}
+void checkFailsafe()
+{
+  if (failsafe)
+  {
+    m1_command_scaled = 0;
+    m2_command_scaled = 0;
+    m3_command_scaled = 0;
+    m4_command_scaled = 0;
+    m5_command_scaled = 0;
+    m6_command_scaled = 0;
+  }
+}
 void loop()
 {
   prev_time = current_time;
@@ -1323,9 +1343,9 @@ void loop()
   //
   // log_data();
   //
-  // throttleCut();
-  //
-  // commandMotors();
+  throttleCut();
+  checkFailsafe(); // this function is used instead of failsafe in drehmflight
+  commandMotors();
   //
   getCommands(); // Pulls current available radio commands
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
