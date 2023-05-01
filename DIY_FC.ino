@@ -93,6 +93,15 @@ int sensorMax = 0;    // maximum sensor value
 
 #define STABALIZE 0
 
+enum ARM_STATUS
+{
+  DISARMED,
+  PREARMED,
+  ARMED,
+  NOPREARM
+};
+ARM_STATUS arm_status = DISARMED;
+
 #define ROLL_RATE 200  // in deg/s
 #define PITCH_RATE 200 // in deg/s // if want variable rates / on switch then use uint16_t data type
 #define YAW_RATE 190   // in deg/s
@@ -1006,7 +1015,7 @@ void getCommands()
 {
 
   sbus.process(); // Process incoming SBUS data
-  if (sbus._channels[0] != 0 && !framelost )
+  if (sbus._channels[0] != 0 && !framelost)
   { // Check if a new SBUS packet has been received
     // Extract channel values from the SBUS object
     channels[0] = sbus._channels[0];
@@ -1226,7 +1235,6 @@ void controlANGLE()
   error_yaw_prev = error_yaw;
   integral_yaw_prev = integral_yaw;
 }
-
 void calibrateRadioData()
 {
   current_time = millis();
@@ -1291,7 +1299,36 @@ void calibrateRadioData()
 
 void throttleCut()
 {
-  
+  if (channels[ARM_CH] < 1500 && channels[PREARM_CH] < 1500)
+  {
+    arm_status = DISARMED;
+  }
+  else if (channels[ARM_CH] < 1500 && channels[PREARM_CH] > 1500)
+  {
+    arm_status = PREARMED;
+  }
+  else if (channels[ARM_CH] > 1500 && arm_status == PREARMED)
+  {
+    arm_status = ARMED;
+  }
+  else if (channels[ARM_CH] > 1500 && arm_status != PREARMED && arm_status != ARMED)
+  {
+    arm_status = NOPREARM;
+  }
+  else
+  {
+    arm_status = DISARMED;
+  }
+
+  if (arm_status != ARMED)
+  {
+    m1_command_scaled = 0;
+    m2_command_scaled = 0;
+    m3_command_scaled = 0;
+    m4_command_scaled = 0;
+    m5_command_scaled = 0;
+    m6_command_scaled = 0;
+  }
 }
 void checkFailsafe()
 {
