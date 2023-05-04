@@ -21,11 +21,10 @@
 #include "SdFat.h"
 #include "sdios.h"
 #include <Servo.h>
-#include <SoftwareSerial.h>
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_HMC5883_U.h>
-
+// #include <SoftwareSerial.h>
+// #include <Wire.h>
+// #include <Adafruit_Sensor.h>
+// #include <Adafruit_HMC5883_U.h>
 
 /*                       parameters taken directly from betaflight using resource command                         */
 #define BEEPER_1 PC5
@@ -72,7 +71,7 @@
 #define GYRO_CS_1 PA4
 
 // ---------------------------------------------------------------------------
-Servo motor_1, motor_2, motor_3, motor_4;
+Servo motor_1, motor_2, motor_3, motor_4,motor_5 , motor_6;
 char data;
 
 /*                                       paramters from dump                                      */
@@ -151,14 +150,14 @@ bool failsafe = false;
 bool framelost = false;
 byte flight_mode = STABALIZE;
 ///////////////////////////////////GPS related Data
-HardwareSerial ss(PC7, PC6);
+HardwareSerial Serial6(Serial_RX_6, Serial_TX_6);
 float latitude = 0;
 float longitude = 0;
 TinyGPSPlus gps;
 
 //////////////////////////////////variables for compass
-Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
-float headingAngle;
+// Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
+// float headingAngle;
 
 //////////////////////////////////Madgwick filter
 Madgwick filter;
@@ -771,31 +770,35 @@ void loopRate(int freq)
   }
 }
 
-void compass(){
-  Wire.beginTransmission(118);// 3 addresses: 0x76,0x77,0x1E (0x76=118)
-  sensors_event_t event; 
-  mag.getEvent(&event); //get data
-  Wire.endTransmission(); 
+// void compass()
+// {
+//   Wire.beginTransmission(118); // 3 addresses: 0x76,0x77,0x1E (0x76=118)
+//   sensors_event_t event;
+//   mag.getEvent(&event); // get data
+//   Wire.endTransmission();
 
-  // Hold the module so that Z is pointing up and you can measure the heading with x&y
-  float heading = atan2(event.magnetic.y, event.magnetic.x);
-  
-  // We need to add declination angle, which is the error of the magnetic field in current location.
-  float declinationAngle = 1.73;  //at chandigarh: 1degree 44minute
-  heading += declinationAngle;
-  
-  // We need to keep heading angle between 0 and 2pi
-  if(heading < 0)    heading += 2*PI;
-  if(heading > 2*PI) heading -= 2*PI;
-   
-  // Convert radians to degrees
-  float headingDegrees = heading*(180/3.1416) ; 
-  headingAngle=headingDegrees;
-}
+//   // Hold the module so that Z is pointing up and you can measure the heading with x&y
+//   float heading = atan2(event.magnetic.y, event.magnetic.x);
 
-void printCompassData(){
-    Serial.println(headingAngle);
-}
+//   // We need to add declination angle, which is the error of the magnetic field in current location.
+//   float declinationAngle = 1.73; // at chandigarh: 1degree 44minute
+//   heading += declinationAngle;
+
+//   // We need to keep heading angle between 0 and 2pi
+//   if (heading < 0)
+//     heading += 2 * PI;
+//   if (heading > 2 * PI)
+//     heading -= 2 * PI;
+
+//   // Convert radians to degrees
+//   float headingDegrees = heading * (180 / 3.1416);
+//   headingAngle = headingDegrees;
+// }
+
+// void printCompassData()
+// {
+//   Serial.println(headingAngle);
+// }
 
 void printAccelData()
 {
@@ -832,10 +835,10 @@ void printGPSData()
 }
 void get_gps_data()
 {
-  while (ss.available() > 0)
+  while (Serial6.available() > 0)
   {
     Serial.println("data received");
-    gps.encode(ss.read());
+    gps.encode(Serial6.read());
     if (gps.location.isUpdated())
     {
       latitude = gps.location.lat();
@@ -1012,15 +1015,15 @@ void printCoreTemp()
 }
 
 void setup()
-{ //for compass
-  Wire.setSDA(PB11); //SDA
-  Wire.setSCL(PB10); //SCL
+{                    
+  // Wire.setSDA(I2C_SDA_2); // SDA
+  // Wire.setSCL(I2C_SCL_2); // SCL
   Serial.begin(9600);
-  mag.begin();
+  // mag.begin();
 
   pinMode(GYRO_CS_1, OUTPUT);
   pinMode(LED_1, OUTPUT);
-  ss.begin(9600);
+  Serial6.begin(9600);
   filter.begin(1600);
 
   SPI_1.begin();
@@ -1047,8 +1050,10 @@ void setup()
   motor_2.attach(MOTOR_2, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
   motor_3.attach(MOTOR_3, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
   motor_4.attach(MOTOR_4, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
+  motor_5.attach(MOTOR_5, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
+  motor_6.attach(MOTOR_6, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
 
-  calibrateESC();
+   calibrateESC();
   // calculate_IMU_error();
   // calibrateRadioData();
 }
@@ -1426,6 +1431,10 @@ void calibrateRadioData()
 
 void calibrateESC()
 {
+  motor_1.writeMicroseconds(1200);// writing a 1200us pulse so motors dont initialize
+  motor_2.writeMicroseconds(1200);
+  motor_3.writeMicroseconds(1200);
+  motor_4.writeMicroseconds(1200);
   while (!Serial)
   {
   }
@@ -1434,6 +1443,7 @@ void calibrateESC()
   Serial.println("\t1 : Send max throttle");
   Serial.println("\t2 : Run test function");
   Serial.println("\t3 : Continue the FC code\n");
+
 
   while (true)
   {
@@ -1501,7 +1511,7 @@ void throttleCut()
 {
   if (channels[ARM_CH] <= 1500 && arm_status == ARMED)
   {
-    arm_status = DISARMED
+    arm_status = DISARMED;
   }
   else if (channels[ARM_CH] <= 1500 && channels[PREARM_CH] <= 1500)
   {
@@ -1572,15 +1582,15 @@ void loop()
 
   // printRadioData();
   //   printDesiredState();
-  //   printGyroData();
+    //printGyroData();
   //  printAccelData();
   //  printMagData();
   //   printRollPitchYaw();
-  printPIDoutput();
+  //printPIDoutput();
   // printMotorCommands();
   // printBatteryStatus();
   // printCoreTemp();
-  // printMadgwick();
+   printMadgwick();
   controlPrintRate(100);
 
   get_imu_data();
@@ -1588,8 +1598,8 @@ void loop()
   // get_gps_data();
   // printGPSData();
 
-  compass();
-  //printCompassData();
+  // compass();
+  // printCompassData();
 
   Madgwick();
 
