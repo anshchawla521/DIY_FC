@@ -21,10 +21,10 @@
 #include "SdFat.h"
 #include "sdios.h"
 #include <Servo.h>
-// #include <SoftwareSerial.h>
-// #include <Wire.h>
-// #include <Adafruit_Sensor.h>
-// #include <Adafruit_HMC5883_U.h>
+#include <SoftwareSerial.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_HMC5883_U.h>
 
 /*                       parameters taken directly from betaflight using resource command                         */
 #define BEEPER_1 PC5
@@ -71,7 +71,7 @@
 #define GYRO_CS_1 PA4
 
 // ---------------------------------------------------------------------------
-Servo motor_1, motor_2, motor_3, motor_4,motor_5 , motor_6;
+Servo motor_1, motor_2, motor_3, motor_4, motor_5, motor_6;
 char data;
 
 /*                                       paramters from dump                                      */
@@ -113,11 +113,11 @@ enum ARM_STATUS
 };
 ARM_STATUS arm_status = DISARMED;
 
-#define ROLL_RATE 200         // in deg/s
-#define PITCH_RATE 200        // in deg/s // if want variable rates / on switch then use uint16_t data type
-#define YAW_RATE 190          // in deg/s
-#define MIN_PULSE_LENGTH 1000 // Minimum pulse length in µs
-#define MAX_PULSE_LENGTH 2000 // Maximum pulse length in µs
+/*                                      CONFIGURATIONS                                                */
+// #define M8nGPS
+// #define KB33COMPASS
+#define SDCARD
+
 // Uncomment only one full scale gyro range (deg/sec)
 // #define GYRO_125DPS
 // #define GYRO_250DPS
@@ -131,10 +131,41 @@ ARM_STATUS arm_status = DISARMED;
 #define ACCEL_8G
 // #define ACCEL_16G
 
+enum peripherals
+{
+  DISABLED,
+  NOTPRESENT,
+  ACTIVE
+};
+
+#ifndef M8nGPS
+peripherals gps_status = DISABLED;
+#else
+peripherals gps_status = ACTIVE;
+#endif
+
+#ifndef KB33COMPASS
+peripherals compass_status = DISABLED;
+#else
+peripherals compass_status = ACTIVE;
+#endif
+
+#ifndef SDCARD
+peripherals sdcard_status = DISABLED;
+#else
+peripherals sdcard_status = ACTIVE;
+#endif
+
+/*                                         RATES                                                         */
+
+#define ROLL_RATE 200         // in deg/s
+#define PITCH_RATE 200        // in deg/s // if want variable rates / on switch then use uint16_t data type
+#define YAW_RATE 190          // in deg/s
+#define MIN_PULSE_LENGTH 1000 // Minimum pulse length in µs
+#define MAX_PULSE_LENGTH 2000 // Maximum pulse length in µs
+
 SPIClass SPI_1(SPI_MOSI_1, SPI_MISO_1, SPI_SCK_1);
 SPIClass SPI_2(SPI_MOSI_2, SPI_MISO_2, SPI_SCK_2);
-
-// HardwareSerial Serial(Serial_RX_6, Serial_TX_6);
 
 float magx = 0;
 float magy = 0;
@@ -150,15 +181,17 @@ bool failsafe = false;
 bool framelost = false;
 byte flight_mode = STABALIZE;
 ///////////////////////////////////GPS related Data
+#ifdef M8nGPS
 HardwareSerial Serial6(Serial_RX_6, Serial_TX_6);
 float latitude = 0;
 float longitude = 0;
-TinyGPSPlus gps;
-
+TinyGPSPlus gps_obj;
+#endif
 //////////////////////////////////variables for compass
-// Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
-// float headingAngle;
-
+#ifdef KB33COMPASS
+Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
+float headingAngle;
+#endif
 //////////////////////////////////Madgwick filter
 Madgwick filter;
 float mad_roll, mad_pitch, mad_heading;
@@ -683,7 +716,7 @@ void write_register_spi(uint8_t address_of_reg, uint8_t salve_device_cs_pin, uin
   delayMicroseconds(5); // data sheet suggests 2
 }
 
-bool initialise_IMU()
+bool initialiseImu()
 {
   // enable sensor in spi interface mode
   digitalWrite(GYRO_CS_1, LOW);
@@ -745,7 +778,15 @@ bool initialise_IMU()
   write_register_spi(0x7C, GYRO_CS_1, 0x02);
   delay(40); // data sheet recommends 20
   if (read_register_spi(0x21, GYRO_CS_1) != 0x01)
-    return false;
+  {
+    while (1)
+    {
+      Serial.println("IMU Initialisation failed");
+      Serial.println(read_register_spi(0x21, GYRO_CS_1));
+      delay(1000);
+    }
+    return false; // redundant
+  }
   else
     return true;
 }
@@ -770,35 +811,62 @@ void loopRate(int freq)
   }
 }
 
-// void compass()
-// {
-//   Wire.beginTransmission(118); // 3 addresses: 0x76,0x77,0x1E (0x76=118)
-//   sensors_event_t event;
-//   mag.getEvent(&event); // get data
-//   Wire.endTransmission();
+#ifdef KB33COMPASS
+void initialiseCompass()
+{
+  if (isCompassActive() == true)
+    mag.begin();
+}
+bool isCompassActive()
+{
+  Wire.beginTransmission(0x1E);
+  if (Wire.endTransmission() != 0) // device not present at the address
+  {
+    compass_status = NOTPRESENT;
+    return false;
+  }
+  else
+  {
+    compass_status = ACTIVE;
+    return true;
+  }
+}
+void getCompassData()
+{
+  if (compass_status != ACTIVE)
+    return;
+  Wire.beginTransmission(118); // 3 addresses: 0x76,0x77,0x1E (0x76=118)
+  sensors_event_t event;
+  mag.getEvent(&event); // get data
+  Wire.endTransmission();
 
-//   // Hold the module so that Z is pointing up and you can measure the heading with x&y
-//   float heading = atan2(event.magnetic.y, event.magnetic.x);
+  // Hold the module so that Z is pointing up and you can measure the heading with x&y
+  float heading = atan2(event.magnetic.y, event.magnetic.x);
 
-//   // We need to add declination angle, which is the error of the magnetic field in current location.
-//   float declinationAngle = 1.73; // at chandigarh: 1degree 44minute
-//   heading += declinationAngle;
+  // We need to add declination angle, which is the error of the magnetic field in current location.
+  float declinationAngle = 1.73; // at chandigarh: 1degree 44minute
+  heading += declinationAngle;
 
-//   // We need to keep heading angle between 0 and 2pi
-//   if (heading < 0)
-//     heading += 2 * PI;
-//   if (heading > 2 * PI)
-//     heading -= 2 * PI;
+  // We need to keep heading angle between 0 and 2pi
+  if (heading < 0)
+    heading += 2 * PI;
+  if (heading > 2 * PI)
+    heading -= 2 * PI;
 
-//   // Convert radians to degrees
-//   float headingDegrees = heading * (180 / 3.1416);
-//   headingAngle = headingDegrees;
-// }
+  // Convert radians to degrees
+  float headingDegrees = heading * (180 / 3.1416);
+  headingAngle = headingDegrees;
+}
 
-// void printCompassData()
-// {
-//   Serial.println(headingAngle);
-// }
+void printCompassData()
+{
+  if (compass_status != ACTIVE)
+    return;
+  if (!print_authorisation)
+    return;
+  Serial.println(headingAngle);
+}
+#endif
 
 void printAccelData()
 {
@@ -824,8 +892,55 @@ void printGyroData()
   Serial.println(GyroZ);
 }
 
+#ifdef M8nGPS
+void initialiseGps()
+{
+  Serial6.begin(9600); // for gps
+  isGpsActive();
+}
+bool isGpsActive()
+{
+// implement
+#define WAIT_TIME_GPS 5000
+  prev_time = millis();
+
+  while (millis() - prev_time <= WAIT_TIME_GPS)
+  { // wait for GPS to send data
+    while (Serial6.available() > 0)
+    {
+      gps_obj.encode(Serial6.read());
+    }
+  }
+  if (gps_obj.charsProcessed() < 10)
+  {
+    gps_status = NOTPRESENT;
+    return false;
+  }
+  else
+  {
+    gps_status = ACTIVE;
+    return true;
+  }
+}
+void getGpsData()
+{
+  if (gps_status != ACTIVE)
+    return;
+  while (Serial6.available() > 0)
+  {
+    Serial.println("data received");
+    gps_obj.encode(Serial6.read());
+    if (gps_obj.location.isUpdated())
+    {
+      latitude = gps_obj.location.lat();
+      longitude = gps_obj.location.lng();
+    }
+  }
+}
 void printGPSData()
 {
+  if (gps_status != ACTIVE)
+    return;
   if (!print_authorisation)
     return;
   Serial.print("Latitude= ");
@@ -833,19 +948,8 @@ void printGPSData()
   Serial.print(" Longitude= ");
   Serial.println(longitude, 6);
 }
-void get_gps_data()
-{
-  while (Serial6.available() > 0)
-  {
-    Serial.println("data received");
-    gps.encode(Serial6.read());
-    if (gps.location.isUpdated())
-    {
-      latitude = gps.location.lat();
-      longitude = gps.location.lng();
-    }
-  }
-}
+
+#endif
 
 void get_imu_data()
 {
@@ -1015,36 +1119,23 @@ void printCoreTemp()
 }
 
 void setup()
-{                    
-  // Wire.setSDA(I2C_SDA_2); // SDA
-  // Wire.setSCL(I2C_SCL_2); // SCL
-  Serial.begin(9600);
-  // mag.begin();
+{
 
   pinMode(GYRO_CS_1, OUTPUT);
   pinMode(LED_1, OUTPUT);
-  Serial6.begin(9600);
-  filter.begin(1600);
 
-  SPI_1.begin();
-  SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
+  Wire.setSDA(I2C_SDA_2); // SDA
+  Wire.setSCL(I2C_SCL_2); // SCL
   Serial.begin(9600);
+  filter.begin(1600);
+  SPI_1.begin(); // used for IMU
+  SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
+
   sbus.begin(); // Initialize the SBUS object
-  delay(25);    // just for safety
-
-  // initialize bmi270 in spi mode
-  if (!initialise_IMU())
-  {
-    while (1)
-    {
-      Serial.println("IMU Initialisation failed");
-      Serial.println(read_register_spi(0x21, GYRO_CS_1));
-      delay(1000);
-    }
-  }
-
-  // Initialize SD card
-  // initialise_SD();
+  // initialiseCompass();
+  // initialiseGps();
+  initialiseImu(); // initialize bmi270 in spi mode
+                   // initialise_SD(); // Initialize SD card
 
   motor_1.attach(MOTOR_1, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
   motor_2.attach(MOTOR_2, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
@@ -1053,69 +1144,96 @@ void setup()
   motor_5.attach(MOTOR_5, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
   motor_6.attach(MOTOR_6, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
 
-   calibrateESC();
+  /*                              Calibration Functions                                         */
+  calibrateESC();
   // calculate_IMU_error();
   // calibrateRadioData();
 }
 
+#ifdef SDCARD
 bool initialise_SD()
 {
-  //    // 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
-  // #define SD_FAT_TYPE 3
-  // #define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(4), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
-  // #if SD_FAT_TYPE == 0
-  //   SdFat sd;
-  //   File file;
-  // #elif SD_FAT_TYPE == 1
-  //   SdFat32 sd;
-  //   File32 file;
-  // #elif SD_FAT_TYPE == 2
-  //   SdExFat sd;
-  //   ExFile file;
-  // #elif SD_FAT_TYPE == 3
-  //   SdFs sd;
-  //   FsFile file;
-  // #else // SD_FAT_TYPE
-  // #error Invalid SD_FAT_TYPE
-  // #endif // SD_FAT_TYPE
-  // #define FILE_BASE_NAME "Data"
+  // 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
+#define SD_FAT_TYPE 3
+#define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(4), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
 
-  //   const uint8_t BASE_NAME_SIZE = sizeof(FILE_BASE_NAME) - 1;
-  //   char fileName[13] = FILE_BASE_NAME "00.csv";
-  //   if (!sd.begin(SD_CONFIG))
-  //   {
-  //     // spit out error
-  //     Serial.println("Failed to initialize SD card"); while (true);
-  //   }
+// how to know if sd card present;
+#if SD_FAT_TYPE == 0
+  SdFat sd;
+  File file;
+#elif SD_FAT_TYPE == 1
+  SdFat32 sd;
+  File32 file;
+#elif SD_FAT_TYPE == 2
+  SdExFat sd;
+  ExFile file;
+#elif SD_FAT_TYPE == 3
+  SdFs sd;
+  FsFile file;
+#else // SD_FAT_TYPE
+#error Invalid SD_FAT_TYPE
+#endif // SD_FAT_TYPE
 
-  //   if (sd.vol()->fatType() == 0)
-  //   {
-  // //    cout << F("Can't find a valid FAT16/FAT32 partition.\n");
-  //     // reformatMsg();
-  //     return;
-  //   }
+#define FILE_BASE_NAME "LOG"
 
-  //   if (BASE_NAME_SIZE > 6) {
-  //     //    error("FILE_BASE_NAME too long");
-  //   }
-  //   while (sd.exists(fileName)) {
-  //     if (fileName[BASE_NAME_SIZE + 1] != '9') {
-  //       fileName[BASE_NAME_SIZE + 1]++;
-  //     } else if (fileName[BASE_NAME_SIZE] != '9') {
-  //       fileName[BASE_NAME_SIZE + 1] = '0';
-  //       fileName[BASE_NAME_SIZE]++;
-  //     } else {
-  //       //      error("Can't create file name");
-  //     }
-  //   }
-  //   if (!file.open(fileName, O_WRONLY | O_CREAT | O_EXCL)) {
-  //     //    error("file.open");
-  //   }
+  const uint8_t BASE_NAME_SIZE = sizeof(FILE_BASE_NAME) - 1;
+  char fileName[13] = FILE_BASE_NAME "00.csv";
+  if (!sd.begin(SD_CONFIG))
+  {
+    // spit out error
+    Serial.println("Failed to initialize SD card");
+    while (true)
+      ;
+  }
 
-  //   file.print("HEEEEEELOOOOOOOO");
-  //   file.close();
+  if (sd.vol()->fatType() == 0)
+  {
+    Serial.println("Can't find a valid FAT16/FAT32 partition.");
+    // reformatMsg();
+    while (true)
+      ;
+  }
+
+  if (BASE_NAME_SIZE > 6)
+  {
+    Serial.println("FILE_BASE_NAME too big");
+    while (true)
+      ;
+  }
+  while (sd.exists(fileName))
+  {
+    if (fileName[BASE_NAME_SIZE + 1] != '9')
+    {
+      fileName[BASE_NAME_SIZE + 1]++;
+    }
+    else if (fileName[BASE_NAME_SIZE] != '9')
+    {
+      fileName[BASE_NAME_SIZE + 1] = '0';
+      fileName[BASE_NAME_SIZE]++;
+    }
+    else
+    {
+      Serial.println("Cannot Generate More than 100 log files");
+      while (true)
+      ;
+    }
+  }
+  if (!file.open(fileName, O_WRONLY | O_CREAT | O_EXCL))
+  {
+     Serial.println("Unable to open/create new file sd card");
+     while (true)
+      ;
+  }
+
+  file.print("HEEEEEELOOOOOOOO");
+  file.close();
   return true;
 }
+bool logData()
+{
+  return true;
+}
+#endif
 void handelFlightMode()
 {
   // example on how to add flight modes
@@ -1431,7 +1549,7 @@ void calibrateRadioData()
 
 void calibrateESC()
 {
-  motor_1.writeMicroseconds(1200);// writing a 1200us pulse so motors dont initialize
+  motor_1.writeMicroseconds(1200); // writing a 1200us pulse so motors dont initialize
   motor_2.writeMicroseconds(1200);
   motor_3.writeMicroseconds(1200);
   motor_4.writeMicroseconds(1200);
@@ -1443,7 +1561,6 @@ void calibrateESC()
   Serial.println("\t1 : Send max throttle");
   Serial.println("\t2 : Run test function");
   Serial.println("\t3 : Continue the FC code\n");
-
 
   while (true)
   {
@@ -1582,23 +1699,23 @@ void loop()
 
   // printRadioData();
   //   printDesiredState();
-    //printGyroData();
+  // printGyroData();
   //  printAccelData();
   //  printMagData();
   //   printRollPitchYaw();
-  //printPIDoutput();
+  // printPIDoutput();
   // printMotorCommands();
   // printBatteryStatus();
   // printCoreTemp();
-   printMadgwick();
+  printMadgwick();
   controlPrintRate(100);
 
   get_imu_data();
   // To check if gps code is working fine
-  // get_gps_data();
+  // getGpsData();
   // printGPSData();
 
-  // compass();
+  // getCompassData();
   // printCompassData();
 
   Madgwick();
