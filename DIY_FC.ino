@@ -21,7 +21,6 @@
 #include "SdFat.h"
 #include "sdios.h"
 #include <Servo.h>
-#include <SoftwareSerial.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_HMC5883_U.h>
@@ -83,8 +82,8 @@ int vbat_multiplier = 1;
 // variables:
 HardwareSerial Serial1(PA3, PA2);
 SBUS sbus(Serial1);
-int maxch[16] = {0};
-int minch[16] = {2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000};
+int maxch[16] = {1810, 1810, 1810, 1810, 1810, 1810, 1810, 172, 1187, 1187, 1187, 1187, 1187, 1187, 1187, 1187};
+int minch[16] = {172, 172, 172, 172, 172, 172, 172, 172, 992, 992, 992, 992, 992, 992, 992, 992};
 
 int sensorValue = 0;  // the sensor value
 int sensorMin = 2000; // minimum sensor value
@@ -1135,7 +1134,7 @@ void setup()
   // initialiseCompass();
   // initialiseGps();
   initialiseImu(); // initialize bmi270 in spi mode
-                   // initialise_SD(); // Initialize SD card
+  // initialise_SD(); // Initialize SD card
 
   motor_1.attach(MOTOR_1, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
   motor_2.attach(MOTOR_2, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
@@ -1145,7 +1144,7 @@ void setup()
   motor_6.attach(MOTOR_6, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
 
   /*                              Calibration Functions                                         */
-  calibrateESC();
+  // calibrateESC();
   // calculate_IMU_error();
   // calibrateRadioData();
 }
@@ -1215,13 +1214,13 @@ bool initialise_SD()
     {
       Serial.println("Cannot Generate More than 100 log files");
       while (true)
-      ;
+        ;
     }
   }
   if (!file.open(fileName, O_WRONLY | O_CREAT | O_EXCL))
   {
-     Serial.println("Unable to open/create new file sd card");
-     while (true)
+    Serial.println("Unable to open/create new file sd card");
+    while (true)
       ;
   }
 
@@ -1257,7 +1256,9 @@ void getCommands()
 {
 
   sbus.process(); // Process incoming SBUS data
-  if (sbus._channels[0] != 0 && !framelost)
+  failsafe = sbus._failsafe;
+  framelost = sbus._framelost;
+  if (sbus._channels[0] != 0)
   { // Check if a new SBUS packet has been received
     // Extract channel values from the SBUS object
     channels[0] = sbus._channels[0];
@@ -1276,8 +1277,6 @@ void getCommands()
     channels[13] = sbus._channels[13];
     channels[14] = sbus._channels[14];
     channels[15] = sbus._channels[15];
-    failsafe = sbus._failsafe;
-    framelost = sbus._framelost;
 
     for (int i = 0; i < 16; i++)
     {
@@ -1427,7 +1426,11 @@ void printRadioData()
   Serial.print(", Ch15: ");
   Serial.print(channels[14]);
   Serial.print(", Ch16: ");
-  Serial.println(channels[15]);
+  Serial.print(channels[15]);
+  Serial.print(", Framelost : ");
+  Serial.print(framelost);
+  Serial.print(", Failsafe: ");
+  Serial.println(failsafe);
 }
 
 void controlANGLE()
@@ -1488,11 +1491,18 @@ void controlANGLE()
 void calibrateRadioData()
 {
   current_time = millis();
-  while (millis() - current_time < 10000)
+
+  for (int i = 0; i < 16; i++)
+  {
+    minch[i] = 2000;
+    maxch[i] = 0;
+  }
+#define CALIBRATION_TIME 20000
+  while (millis() - current_time < CALIBRATION_TIME)
   {
     Serial.print("Move all the sticks to their maximum and minimum values ");
 
-    Serial.println(millis() - current_time);
+    Serial.println(CALIBRATION_TIME - millis() + current_time);
     sbus.process(); // Process incoming SBUS data
     if (sbus._channels[0] != 0)
     {
@@ -1536,7 +1546,7 @@ void calibrateRadioData()
     Serial.print(", ");
     Serial.print(maxch[i]);
   }
-  Serial.println("}");
+  Serial.println("};");
   Serial.print("int minch[16] = {");
   Serial.print(minch[0]);
   for (int i = 1; i < 16; i++)
@@ -1544,7 +1554,7 @@ void calibrateRadioData()
     Serial.print(", ");
     Serial.print(minch[i]);
   }
-  Serial.print("}");
+  Serial.println("};");
 }
 
 void calibrateESC()
@@ -1626,30 +1636,28 @@ void calibrateESC()
 }
 void throttleCut()
 {
-  if (channels[ARM_CH] <= 1500 && arm_status == ARMED)
+  // used 1800 instead of 1500 so that 3 pos switches dont cause problem
+  if (channels[ARM_CH] <= 1800 && arm_status == ARMED)
   {
     arm_status = DISARMED;
   }
-  else if (channels[ARM_CH] <= 1500 && channels[PREARM_CH] <= 1500)
+  else if (channels[ARM_CH] <= 1800 && channels[PREARM_CH] <= 1800)
   {
     arm_status = DISARMED;
   }
-  else if (channels[ARM_CH] <= 1500 && channels[PREARM_CH] > 1500)
+  else if (channels[ARM_CH] <= 1800 && channels[PREARM_CH] > 1800)
   {
     arm_status = PREARMED;
   }
-  else if (channels[ARM_CH] > 1500 && arm_status == PREARMED)
+  else if (channels[ARM_CH] > 1800 && arm_status == PREARMED)
   {
     arm_status = ARMED;
   }
-  else if (channels[ARM_CH] > 1500 && arm_status != PREARMED && arm_status != ARMED)
+  else if (channels[ARM_CH] > 1800 && arm_status != PREARMED && arm_status != ARMED)
   {
     arm_status = NOPREARM;
   }
-  else
-  {
-    arm_status = DISARMED;
-  }
+
 
   if (arm_status != ARMED)
   {
@@ -1660,6 +1668,20 @@ void throttleCut()
     m5_command_scaled = 0;
     m6_command_scaled = 0;
   }
+}
+void printArmStatus()
+{
+  if (!print_authorisation)
+    return;
+  Serial.print("ARMING STATUS : ");
+  if (arm_status == DISARMED)
+    Serial.println("DISARMED");
+  else if (arm_status == NOPREARM)
+    Serial.println("NOPREARM");
+  else if (arm_status == ARMED)
+    Serial.println("ARMED");
+  else if (arm_status == PREARMED)
+    Serial.println("PREARMED");
 }
 void checkFailsafe()
 {
@@ -1697,7 +1719,7 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-  // printRadioData();
+   printRadioData();
   //   printDesiredState();
   // printGyroData();
   //  printAccelData();
@@ -1707,7 +1729,8 @@ void loop()
   // printMotorCommands();
   // printBatteryStatus();
   // printCoreTemp();
-  printMadgwick();
+  // printMadgwick();
+  printArmStatus();
   controlPrintRate(100);
 
   get_imu_data();
