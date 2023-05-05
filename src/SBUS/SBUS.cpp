@@ -16,26 +16,47 @@ void SBUS::process()
 	static byte buffer[25];
 	static byte buffer_index = 0;
 
-	
 	while (_serial.available() > 0)
 	{
+
 		byte rx = _serial.read();
 		if (buffer_index == 0 && rx != SBUS_STARTBYTE)
 		{
 			// incorrect start byte, out of sync
+
 			continue;
 		}
-		last_packet_received_time = millis();
+		
 		buffer[buffer_index++] = rx;
 
 		if (buffer_index == 25)
 		{
+
 			buffer_index = 0;
 			if (buffer[24] != SBUS_ENDBYTE)
 			{
 				// incorrect end byte, out of sync
+				// if end byte not found after start then wrong start byte was assumed to correct that we look for other possible start bytes
+				for(int i =1; i < 25 ;i++)
+				{
+					if(buffer[i] == SBUS_STARTBYTE)
+					{
+						// re adjust buffer index and shift bytes
+						buffer_index = buffer_index - i;
+
+						// shift byte at ith location to 0 , byte at i+1 location to 1 and .....
+						for(int j = 0; j+i < 25 ; j++)
+						{
+							buffer[j] = buffer[j+i];
+						}
+
+
+						break;
+					}
+				}
 				continue;
 			}
+			last_packet_received_time = millis();
 
 			_channels[0] = ((buffer[1] | buffer[2] << 8) & 0x07FF);
 			_channels[1] = ((buffer[2] >> 3 | buffer[3] << 5) & 0x07FF);
@@ -61,8 +82,8 @@ void SBUS::process()
 		}
 	}
 	if (millis() - last_packet_received_time > 100)
-		{
-			// if not packet recived in 100 ms
-			_failsafe = true;
-		}
+	{
+		// if not packet recived in 100 ms
+		_failsafe = true;
+	}
 }
