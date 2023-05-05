@@ -115,7 +115,7 @@ ARM_STATUS arm_status = DISARMED;
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
 // #define KB33COMPASS
-#define SDCARD
+// #define SDCARD
 
 // Uncomment only one full scale gyro range (deg/sec)
 // #define GYRO_125DPS
@@ -243,6 +243,10 @@ float Kp_yaw = 0.3;     // Yaw P-gain
 float Ki_yaw = 0.05;    // Yaw I-gain
 float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, motors will begin to overheat!)
 
+// Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
+
+float B_accel = 0.07;    // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
+float B_gyro = 0.07;      // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
 // Controller:
 float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_il, integral_roll_ol, integral_roll_prev, integral_roll_prev_il, integral_roll_prev_ol, derivative_roll, roll_PID = 0;
 float error_pitch, error_pitch_prev, pitch_des_prev, integral_pitch, integral_pitch_il, integral_pitch_ol, integral_pitch_prev, integral_pitch_prev_il, integral_pitch_prev_ol, derivative_pitch, pitch_PID = 0;
@@ -950,7 +954,7 @@ void printGPSData()
 
 #endif
 
-void get_imu_data()
+void getIMUdata()
 {
   AccX = (int16_t)read_register_spi(0x0C, GYRO_CS_1, true);
   AccY = (int16_t)read_register_spi(0x0E, GYRO_CS_1, true);
@@ -967,6 +971,14 @@ void get_imu_data()
   AccY = AccY - AccErrorY;
   AccZ = AccZ - AccErrorZ;
 
+  // LP filter accelerometer data
+  AccX = (1.0 - B_accel) * AccX_prev + B_accel * AccX;
+  AccY = (1.0 - B_accel) * AccY_prev + B_accel * AccY;
+  AccZ = (1.0 - B_accel) * AccZ_prev + B_accel * AccZ;
+  AccX_prev = AccX;
+  AccY_prev = AccY;
+  AccZ_prev = AccZ;
+
   GyroX = (int16_t)read_register_spi(0x12, GYRO_CS_1, true);
   GyroY = (int16_t)read_register_spi(0x14, GYRO_CS_1, true);
   GyroZ = (int16_t)read_register_spi(0x16, GYRO_CS_1, true);
@@ -981,6 +993,14 @@ void get_imu_data()
   GyroX = GyroX - GyroErrorX;
   GyroY = GyroY - GyroErrorY;
   GyroZ = GyroZ - GyroErrorZ;
+
+  // LP filter gyro data
+  GyroX = (1.0 - B_gyro) * GyroX_prev + B_gyro * GyroX;
+  GyroY = (1.0 - B_gyro) * GyroY_prev + B_gyro * GyroY;
+  GyroZ = (1.0 - B_gyro) * GyroZ_prev + B_gyro * GyroZ;
+  GyroX_prev = GyroX;
+  GyroY_prev = GyroY;
+  GyroZ_prev = GyroZ;
 }
 
 void Madgwick()
@@ -993,7 +1013,7 @@ void Madgwick()
   yaw_IMU = filter.getYaw();
 }
 
-void printMadgwick()
+void printRollPitchYaw()
 {
   if (!print_authorisation)
     return;
@@ -1130,7 +1150,8 @@ void setup()
   SPI_1.begin(); // used for IMU
   SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
 
-  sbus.begin(); // Initialize the SBUS object
+  sbus.begin();    // Initialize the SBUS object
+  Serial1.flush(); // to empty buffer on reupload of code
   // initialiseCompass();
   // initialiseGps();
   initialiseImu(); // initialize bmi270 in spi mode
@@ -1296,14 +1317,14 @@ void getDesiredState()
   float normalized_roll = 0;
   float normalized_yaw = 0;
   float normalized_throttle = 0;
-  normalized_pitch = (channels[PITCH_CH] - 1500 / 500);     // -1 TO 1
-  normalized_roll = (channels[ROLL_CH] - 1500 / 500);       // -1 TO 1
-  normalized_yaw = (channels[PITCH_CH] - 1500 / 500);       // -1 TO 1
-  normalized_throttle = (channels[PITCH_CH] - 1000 / 1000); // 0 TO 1
+  normalized_pitch = (channels[PITCH_CH] - 1500) / 500.0;        // -1 TO 1
+  normalized_roll = (channels[ROLL_CH] - 1500) / 500.0;          // -1 TO 1
+  normalized_yaw = (channels[YAW_CH] - 1500) / 500.0;            // -1 TO 1
+  normalized_throttle = (channels[THROTTLE_CH] - 1000) / 1000.0; // 0 TO 1
 
   pitch_des = constrain(normalized_pitch, -1.0, 1.0) * PITCH_RATE;
-  roll_des = constrain(normalized_pitch, -1.0, 1.0) * ROLL_RATE;
-  yaw_des = constrain(normalized_pitch, -1.0, 1.0) * YAW_RATE;
+  roll_des = constrain(normalized_roll, -1.0, 1.0) * ROLL_RATE;
+  yaw_des = constrain(normalized_yaw, -1.0, 1.0) * YAW_RATE;
   thro_des = constrain(normalized_throttle, 0, 1.0);
 }
 
@@ -1356,10 +1377,11 @@ void controlMixer()
   // Quad mixing - EXAMPLE
 
   // all values like thro_des , pitch_PID , roll_PID , yaw_PID are tried to be in between -1 and 1
-  m1_command_scaled = thro_des - pitch_PID + roll_PID + yaw_PID; // Front Left
+  // you may have to change motor number to match the physical location as mentioned
+  m4_command_scaled = thro_des - pitch_PID + roll_PID + yaw_PID; // Front Left
   m2_command_scaled = thro_des - pitch_PID - roll_PID - yaw_PID; // Front Right
-  m3_command_scaled = thro_des + pitch_PID - roll_PID + yaw_PID; // Back Right
-  m4_command_scaled = thro_des + pitch_PID + roll_PID - yaw_PID; // Back Left
+  m1_command_scaled = thro_des + pitch_PID - roll_PID + yaw_PID; // Back Right
+  m3_command_scaled = thro_des + pitch_PID + roll_PID - yaw_PID; // Back Left
   m5_command_scaled = 0;
   m6_command_scaled = 0;
 }
@@ -1387,6 +1409,24 @@ void commandMotors()
   motor_4.writeMicroseconds(m4_command_PWM);
   // motor_5.writeMicroseconds(m5_command_PWM);
   // motor_6.writeMicroseconds(m6_command_PWM);
+}
+void printMotorCommands()
+{
+  if (!print_authorisation)
+    return;
+  // Debugging output
+  Serial.print(" motor1: ");
+  Serial.print(m1_command_PWM);
+  Serial.print(" motor2: ");
+  Serial.print(m2_command_PWM);
+  Serial.print(" motor3: ");
+  Serial.print(m3_command_PWM);
+  Serial.print(" motor4: ");
+  Serial.print(m4_command_PWM);
+  Serial.print(" motor5: ");
+  Serial.print(m5_command_PWM);
+  Serial.print(" motor6: ");
+  Serial.println(m6_command_PWM);
 }
 
 void printRadioData()
@@ -1658,7 +1698,6 @@ void throttleCut()
     arm_status = NOPREARM;
   }
 
-
   if (arm_status != ARMED)
   {
     m1_command_scaled = 0;
@@ -1693,6 +1732,16 @@ void checkFailsafe()
     m4_command_scaled = 0;
     m5_command_scaled = 0;
     m6_command_scaled = 0;
+
+    // failsafe values
+
+    channels[PITCH_CH] = 1500;
+    channels[YAW_CH] = 1500;
+    channels[ROLL_CH] = 1500;
+    channels[THROTTLE_CH] = 1000;
+    channels[ARM_CH] = 1000;
+    channels[PREARM_CH] = 1000;
+    channels[MODES_CH] = 1000;
   }
 }
 void printPIDoutput()
@@ -1719,21 +1768,21 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-   printRadioData();
-  //   printDesiredState();
-  // printGyroData();
-  //  printAccelData();
-  //  printMagData();
-  //   printRollPitchYaw();
-  // printPIDoutput();
-  // printMotorCommands();
+  //  printRadioData();
+  //  printDesiredState();
+  //  printGyroData();
+  //   printAccelData();
+  //   printMagData();
+  printRollPitchYaw();
+  printPIDoutput();
+  printMotorCommands();
   // printBatteryStatus();
   // printCoreTemp();
-  // printMadgwick();
-  printArmStatus();
+
+  // printArmStatus();
   controlPrintRate(100);
 
-  get_imu_data();
+  getIMUdata();
   // To check if gps code is working fine
   // getGpsData();
   // printGPSData();
@@ -1750,11 +1799,12 @@ void loop()
   //
   // logData();
   //
+  getCommands(); // Pulls current available radio commands
+
   throttleCut();
   checkFailsafe(); // this function is used instead of failsafe in drehmflight
   commandMotors();
-  //
-  getCommands(); // Pulls current available radio commands
+
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
   getBatteryStatus();
   getCoreTemp();
