@@ -1768,14 +1768,14 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-  //  printRadioData();
+   printRadioData();
   //  printDesiredState();
   //  printGyroData();
   //   printAccelData();
   //   printMagData();
-  printRollPitchYaw();
-  printPIDoutput();
-  printMotorCommands();
+  // printRollPitchYaw();
+  // printPIDoutput();
+  // printMotorCommands();
   // printBatteryStatus();
   // printCoreTemp();
 

@@ -8,6 +8,7 @@ void SBUS::begin()
 		_channels[i] = 0;
 	}
 	_serial.begin(100000, SERIAL_8E2);
+	last_packet_received_time = millis();
 }
 
 void SBUS::process()
@@ -15,6 +16,7 @@ void SBUS::process()
 	static byte buffer[25];
 	static byte buffer_index = 0;
 
+	
 	while (_serial.available() > 0)
 	{
 		byte rx = _serial.read();
@@ -23,7 +25,7 @@ void SBUS::process()
 			// incorrect start byte, out of sync
 			continue;
 		}
-
+		last_packet_received_time = millis();
 		buffer[buffer_index++] = rx;
 
 		if (buffer_index == 25)
@@ -58,4 +60,9 @@ void SBUS::process()
 			_failsafe = ((buffer[23]) & 0x0008) ? true : false;
 		}
 	}
+	if (millis() - last_packet_received_time > 100)
+		{
+			// if not packet recived in 100 ms
+			_failsafe = true;
+		}
 }

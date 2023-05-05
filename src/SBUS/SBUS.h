@@ -17,6 +17,8 @@ class SBUS {
 		volatile int _channels[18];
 		volatile bool _failsafe;
 		volatile bool _framelost;
+		volatile unsigned long last_packet_received_time;
+
 	private:
 		HardwareSerial & _serial;
 };
