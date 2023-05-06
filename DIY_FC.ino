@@ -1782,18 +1782,7 @@ void handelAuxChannels()
   }
 }
 
-void throttleCut()
-{
-  if (arm_status != ARMED)
-  {
-    m1_command_scaled = -0.1;
-    m2_command_scaled = -0.1;
-    m3_command_scaled = -0.1;
-    m4_command_scaled = -0.1;
-    m5_command_scaled = -0.1;
-    m6_command_scaled = -0.1;
-  }
-}
+
 void printArmStatus()
 {
   if (!print_authorisation)
@@ -1808,8 +1797,9 @@ void printArmStatus()
   else if (arm_status == PREARMED)
     Serial.println("PREARMED");
 }
-void checkFailsafe()
+void checkForSafety()
 {
+  /* DEXCRIPTION : ALl safety confitions go here like when failsafe then dont disarm motors*/
   if (failsafe)
   {
     m1_command_scaled = -0.1;
@@ -1828,6 +1818,16 @@ void checkFailsafe()
     channels[ARM_CH] = 1000;
     channels[PREARM_CH] = 1000;
     channels[MODES_CH] = 1000;
+  }
+
+  if (arm_status != ARMED)
+  {
+    m1_command_scaled = -0.1;
+    m2_command_scaled = -0.1;
+    m3_command_scaled = -0.1;
+    m4_command_scaled = -0.1;
+    m5_command_scaled = -0.1;
+    m6_command_scaled = -0.1;
   }
 }
 void printPIDoutput()
@@ -1887,8 +1887,7 @@ void loop()
   handelFlightMode(); // PID loops goes inside this
   controlMixer();
 
-  throttleCut();
-  checkFailsafe(); // this function is used instead of failsafe in drehmflight
+  checkForSafety(); // this function is used instead of failsafe in drehmflight
   scaleCommands();
   commandMotors();
 
