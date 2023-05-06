@@ -694,7 +694,7 @@ const uint8_t bmi270_config_file[] = {
     0x00, 0xc1, 0x80, 0x2e, 0x00, 0xc1, 0x80, 0x2e, 0x00, 0xc1, 0x80, 0x2e, 0x00, 0xc1, 0x80, 0x2e, 0x00, 0xc1, 0x80,
     0x2e, 0x00, 0xc1};
 
-uint16_t read_register_spi(uint8_t address_of_reg, uint8_t salve_device_cs_pin, bool bytes_16 = false)
+uint16_t read_register_spi(uint8_t address_of_reg, uint8_t salve_device_cs_pin, bool bytes_16 = false )
 {
   digitalWrite(salve_device_cs_pin, LOW);
   SPI_1.transfer(0x80 | address_of_reg);
@@ -705,7 +705,7 @@ uint16_t read_register_spi(uint8_t address_of_reg, uint8_t salve_device_cs_pin, 
   // supports LowerByte first only // not to be confused with lsb
 
   digitalWrite(salve_device_cs_pin, HIGH);
-  delayMicroseconds(5); // data sheet suggests 2
+  delayMicroseconds(2); // data sheet suggests 2
 
   return data_received;
 }
@@ -718,7 +718,7 @@ void write_register_spi(uint8_t address_of_reg, uint8_t salve_device_cs_pin, uin
   if (bytes_16)
     SPI_1.transfer(uint8_t(data >> 8));
   digitalWrite(salve_device_cs_pin, HIGH);
-  delayMicroseconds(5); // data sheet suggests 2
+  delayMicroseconds(2); // data sheet suggests 2
 }
 
 bool initialiseImu()
@@ -1645,7 +1645,7 @@ void controlANGLE()
   // Roll
   error_roll = roll_des - roll_IMU;
   integral_roll = integral_roll_prev + error_roll * dt;
-  if (channels[THROTTLE_CH] < 1060)
+  if (channels[THROTTLE_CH] < 1060 || arm_status == DISARMED)
   { // Don't let integrator build if throttle is too low
     integral_roll = 0;
   }
@@ -1656,7 +1656,7 @@ void controlANGLE()
   // Pitch
   error_pitch = pitch_des - pitch_IMU;
   integral_pitch = integral_pitch_prev + error_pitch * dt;
-  if (channels[THROTTLE_CH] < 1060)
+  if (channels[THROTTLE_CH] < 1060 || arm_status == DISARMED)
   { // Don't let integrator build if throttle is too low
     integral_pitch = 0;
   }
@@ -1667,7 +1667,7 @@ void controlANGLE()
   // Yaw, stablize on rate from GyroZ
   error_yaw = yaw_des - GyroZ;
   integral_yaw = integral_yaw_prev + error_yaw * dt;
-  if (channels[THROTTLE_CH] < 1060)
+  if (channels[THROTTLE_CH] < 1060 || arm_status == DISARMED)
   { // Don't let integrator build if throttle is too low
     integral_yaw = 0;
   }
