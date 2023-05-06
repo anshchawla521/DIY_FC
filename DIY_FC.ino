@@ -157,9 +157,9 @@ peripherals sdcard_status = ACTIVE;
 
 /*                                         RATES                                                         */
 
-#define ROLL_RATE 200         // in deg/s
-#define PITCH_RATE 200        // in deg/s // if want variable rates / on switch then use uint16_t data type
-#define YAW_RATE 190          // in deg/s
+#define ROLL_RATE 45          // in deg/s
+#define PITCH_RATE 45         // in deg/s // if want variable rates / on switch then use uint16_t data type
+#define YAW_RATE 45           // in deg/s
 #define MIN_PULSE_LENGTH 1000 // Minimum pulse length in µs
 #define MAX_PULSE_LENGTH 2000 // Maximum pulse length in µs
 
@@ -200,6 +200,7 @@ float mad_roll, mad_pitch, mad_heading;
 float batteryVoltage = 0;
 float batteryCurrent = 0;
 float coreTemp = 0;
+float percentage_time_used_by_code;
 ////////////////////////////////////IMU related variables////////////////////////////
 float AccX, AccY, AccZ;
 float AccX_prev, AccY_prev, AccZ_prev;
@@ -807,9 +808,11 @@ void loopRate(int freq)
   float invFreq = 1.0 / freq * 1000000.0;
   unsigned long checker = micros();
 
+  percentage_time_used_by_code = ((checker - current_time) / invFreq) * 100;
   // Sit in loop until appropriate time has passed
   while (invFreq > (checker - current_time))
   {
+    Serial.println("Wasting time");
     checker = micros();
   }
 }
@@ -1136,6 +1139,13 @@ void printCoreTemp()
   Serial.print("Core temperature");
   Serial.println(coreTemp);
 }
+void printPercentageTimeCpuUsed()
+{
+  if (!print_authorisation)
+    return;
+  Serial.print("Percentage Time Used By Code ");
+  Serial.println(percentage_time_used_by_code);
+}
 
 void setup()
 {
@@ -1149,7 +1159,7 @@ void setup()
 
   Wire.setSDA(I2C_SDA_2); // SDA
   Wire.setSCL(I2C_SCL_2); // SCL
-  Serial.begin(9600);
+  Serial.begin(115200);
   filter.begin(1600);
   SPI_1.begin(); // used for IMU
   SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
@@ -1162,7 +1172,7 @@ void setup()
                    // initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
-  // calibrateESC();ESC 
+  // calibrateESC();ESC
   // calculate_IMU_error();
   // calibrateRadioData();
 }
@@ -1248,26 +1258,52 @@ bool initialise_SD()
 }
 bool logData()
 {
+  file.print("Time");
+  file.print(time);
+  file.print("Roll-IMU");
+  file.print(roll_IMU);
+  file.print("Pitch-IMU");
+  file.print(pitch_IMU);
+  file.print("Yaw-IMU");
+  file.print(yaw_IMU);
+  file.print("Roll-DES");
+  file.print(roll_des);
+  file.print("Pitch-DES");
+  file.print(pitch_des);
+  file.print("Yaw-DES");
+  file.print(yaw_des);
+  file.print("Thro-DES");
+  file.print(thro_des);
+  file.print("Roll-PID");
+  file.print(roll_PID);
+  file.print("Pitch-PID");
+  file.print(pitch_PID);
+  file.print("Yaw-PID");
+  file.print(yaw_PID);
+  file.print("motor1");
+  file.print(m1_command_PWM);
+  file.print("motor2");
+  file.print(m2_command_PWM);
+  file.print("motor3");
+  file.print(m3_command_PWM);
+  file.print("motor4");
+  file.print(m4_command_PWM);
+  file.print("Arming Status");
+  file.println(arm_status);
+
   return true;
 }
 #endif
 void handelFlightMode()
 {
   // example on how to add flight modes
-  if (channels[MODES_CH] >= 1800)
+  if (flight_mode == STABALIZE)
   {
     controlANGLE();
-    flight_mode = STABALIZE;
-  }
-  else if (channels[MODES_CH] < 1800 && channels[MODES_CH] >= 1500)
-  {
-    controlANGLE();
-    flight_mode = STABALIZE;
   }
   else
   {
     controlANGLE();
-    flight_mode = STABALIZE;
   }
 }
 void getCommands()
@@ -1703,7 +1739,7 @@ void calibrateRadioData()
   Serial.println("};");
 }
 
-void throttleCut()
+void handelAuxChannels()
 {
   // used 1800 instead of 1500 so that 3 pos switches dont cause problem
   if (channels[ARM_CH] <= 1800 && arm_status == ARMED)
@@ -1727,6 +1763,14 @@ void throttleCut()
     arm_status = NOPREARM;
   }
 
+  if (channels[MODES_CH] > 1800)
+  {
+    flight_mode = STABALIZE;
+  }
+}
+
+void throttleCut()
+{
   if (arm_status != ARMED)
   {
     m1_command_scaled = -0.1;
@@ -1755,12 +1799,12 @@ void checkFailsafe()
 {
   if (failsafe)
   {
-    m1_command_scaled = 0;
-    m2_command_scaled = 0;
-    m3_command_scaled = 0;
-    m4_command_scaled = 0;
-    m5_command_scaled = 0;
-    m6_command_scaled = 0;
+    m1_command_scaled = -0.1;
+    m2_command_scaled = -0.1;
+    m3_command_scaled = -0.1;
+    m4_command_scaled = -0.1;
+    m5_command_scaled = -0.1;
+    m6_command_scaled = -0.1;
 
     // failsafe values
 
@@ -1797,8 +1841,8 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-  printRadioData();
-  printDesiredState();
+  // printRadioData();
+  // printDesiredState();
   //  printGyroData();
   //   printAccelData();
   //   printMagData();
@@ -1807,8 +1851,8 @@ void loop()
   // printMotorCommands();
   // printBatteryStatus();
   // printCoreTemp();
-
   // printArmStatus();
+  printPercentageTimeCpuUsed();
   controlPrintRate(100);
 
   getIMUdata();
@@ -1820,15 +1864,15 @@ void loop()
   // printCompassData();
 
   Madgwick();
-
   getDesiredState();
 
-  handelFlightMode(); // PID loops goes inside this
-  controlMixer();
   //
   // logData();
   //
   getCommands(); // Pulls current available radio commands
+  handelAuxChannels();
+  handelFlightMode(); // PID loops goes inside this
+  controlMixer();
 
   throttleCut();
   checkFailsafe(); // this function is used instead of failsafe in drehmflight
