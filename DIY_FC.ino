@@ -1281,13 +1281,20 @@ bool initialise_SD()
   file.print("motor2 ,");
   file.print("motor3 ,");
   file.print("motor4 ,");
-  file.println("Arming Status");
+  file.print("Arming Status ,");
+  file.print("Battery Voltage ,");
+  file.print("Battery current ,");
+  file.print("Altitude ,");
+  file.print("Flight Mode ,");
+  file.print("Fail safe ,");
+  file.println("Loop Frequency");
+
   file.close();
   return true;
 }
 bool logData()
 {
-    if (arm_status != ARMED && log_file_open)
+  if (arm_status != ARMED && log_file_open)
   {
     file.close();
     log_file_open = false;
@@ -1305,14 +1312,14 @@ bool logData()
 
     return false; // 100 hz
   }
-  if (!log_file_open )
+  if (!log_file_open)
   {
 
     if (!file.open(fileName, O_WRONLY | O_CREAT | O_AT_END)) // check fsBaseFile class open function for why so
     {
       // Serial.println("Unable to open/create new file sd card");
       sdcard_status = NOTPRESENT;
-  
+
       return false;
     }
     log_file_open = true;
@@ -1350,7 +1357,19 @@ bool logData()
   file.print(" ,");
   file.print(m4_command_PWM);
   file.print(" ,");
-  file.println(arm_status);
+  file.print(arm_status);
+  file.print(" ,");
+  file.print(batteryVoltage);
+  file.print(" ,");
+  file.print(batteryCurrent);
+  file.print(" ,");
+  file.print(altitude_from_baro);
+  file.print(" ,");
+  file.print(flight_mode);
+  file.print(" ,");
+  file.print(failsafe);
+  file.print(" ,");
+  file.println(actual_loop_frequency);
 
   return true;
 }
