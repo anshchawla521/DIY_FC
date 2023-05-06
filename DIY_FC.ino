@@ -868,7 +868,11 @@ void getCompassData()
   Wire.beginTransmission(118); // 3 addresses: 0x76,0x77,0x1E (0x76=118)
   sensors_event_t event;
   mag.getEvent(&event); // get data
-  Wire.endTransmission();
+  if (Wire.endTransmission() != 0)
+  {
+    compass_status = NOTPRESENT;
+    return;
+  }
 
   // Hold the module so that Z is pointing up and you can measure the heading with x&y
   float heading = atan2(event.magnetic.y, event.magnetic.x);
