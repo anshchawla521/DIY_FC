@@ -1896,5 +1896,5 @@ void loop()
   getBatteryStatus();
   getCoreTemp();
   //// Regulate loop rate
-  loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
+  loopRate(1600); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
 }
