@@ -115,7 +115,7 @@ ARM_STATUS arm_status = DISARMED;
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
 // #define KB33COMPASS
-// #define SDCARD
+#define SDCARD
 
 // Uncomment only one full scale gyro range (deg/sec)
 // #define GYRO_125DPS
@@ -153,6 +153,29 @@ peripherals compass_status = ACTIVE;
 peripherals sdcard_status = DISABLED;
 #else
 peripherals sdcard_status = ACTIVE;
+// 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
+#define SD_FAT_TYPE 3
+// how to know if sd card present;
+#if SD_FAT_TYPE == 0
+SdFat sd;
+File file;
+#elif SD_FAT_TYPE == 1
+SdFat32 sd;
+File32 file;
+#elif SD_FAT_TYPE == 2
+SdExFat sd;
+ExFile file;
+#elif SD_FAT_TYPE == 3
+SdFs sd;
+FsFile file;
+#else // SD_FAT_TYPE
+#error Invalid SD_FAT_TYPE
+#endif // SD_FAT_TYPE
+bool log_file_open = false;
+
+#define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(4), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
+#define FILE_BASE_NAME "LOG"
+char fileName[13] = FILE_BASE_NAME "00.csv";
 #endif
 
 /*                                         RATES                                                         */
@@ -171,7 +194,7 @@ float magy = 0;
 float magz = 0;
 float altitude_from_baro = 0;
 
-unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter;
+unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter;
 float dt;
 bool print_authorisation = false;
 
@@ -216,7 +239,6 @@ float AccErrorZ = 0.00;
 float GyroErrorX = -0.18;
 float GyroErrorY = -0.04;
 float GyroErrorZ = 0.02;
-
 
 float thro_des, roll_des, pitch_des, yaw_des;
 
@@ -695,7 +717,7 @@ const uint8_t bmi270_config_file[] = {
     0x00, 0xc1, 0x80, 0x2e, 0x00, 0xc1, 0x80, 0x2e, 0x00, 0xc1, 0x80, 0x2e, 0x00, 0xc1, 0x80, 0x2e, 0x00, 0xc1, 0x80,
     0x2e, 0x00, 0xc1};
 
-uint16_t read_register_spi(uint8_t address_of_reg, uint8_t salve_device_cs_pin, bool bytes_16 = false )
+uint16_t read_register_spi(uint8_t address_of_reg, uint8_t salve_device_cs_pin, bool bytes_16 = false)
 {
   digitalWrite(salve_device_cs_pin, LOW);
   SPI_1.transfer(0x80 | address_of_reg);
@@ -1183,7 +1205,7 @@ void setup()
   // initialiseCompass();
   // initialiseGps();
   initialiseImu(); // initialize bmi270 in spi mode
-                   // initialise_SD(); // Initialize SD card
+  initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
   // calibrateESC(); //ESC
@@ -1194,52 +1216,27 @@ void setup()
 #ifdef SDCARD
 bool initialise_SD()
 {
-  // 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
-#define SD_FAT_TYPE 3
-#define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(4), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
-
-// how to know if sd card present;
-#if SD_FAT_TYPE == 0
-  SdFat sd;
-  File file;
-#elif SD_FAT_TYPE == 1
-  SdFat32 sd;
-  File32 file;
-#elif SD_FAT_TYPE == 2
-  SdExFat sd;
-  ExFile file;
-#elif SD_FAT_TYPE == 3
-  SdFs sd;
-  FsFile file;
-#else // SD_FAT_TYPE
-#error Invalid SD_FAT_TYPE
-#endif // SD_FAT_TYPE
-
-#define FILE_BASE_NAME "LOG"
 
   const uint8_t BASE_NAME_SIZE = sizeof(FILE_BASE_NAME) - 1;
-  char fileName[13] = FILE_BASE_NAME "00.csv";
+
   if (!sd.begin(SD_CONFIG))
   {
     // spit out error
     Serial.println("Failed to initialize SD card");
-    while (true)
-      ;
+    sdcard_status = NOTPRESENT;
   }
 
   if (sd.vol()->fatType() == 0)
   {
     Serial.println("Can't find a valid FAT16/FAT32 partition.");
     // reformatMsg();
-    while (true)
-      ;
+    sdcard_status = NOTPRESENT;
   }
 
   if (BASE_NAME_SIZE > 6)
   {
     Serial.println("FILE_BASE_NAME too big");
-    while (true)
-      ;
+    sdcard_status = NOTPRESENT;
   }
   while (sd.exists(fileName))
   {
@@ -1255,54 +1252,104 @@ bool initialise_SD()
     else
     {
       Serial.println("Cannot Generate More than 100 log files");
-      while (true)
-        ;
+      sdcard_status = NOTPRESENT;
     }
   }
   if (!file.open(fileName, O_WRONLY | O_CREAT | O_EXCL))
   {
     Serial.println("Unable to open/create new file sd card");
+    sdcard_status = NOTPRESENT;
+  }
+  if (sdcard_status == NOTPRESENT)
     while (true)
       ;
-  }
 
-  file.print("HEEEEEELOOOOOOOO");
+  log_file_open = true;
+  sdcard_status = ACTIVE;
+  file.print("Time ,");
+  file.print("Roll-IMU ,");
+  file.print("Pitch-IMU ,");
+  file.print("Yaw-IMU ,");
+  file.print("Roll-DES ,");
+  file.print("Pitch-DES ,");
+  file.print("Thro-DES ,");
+  file.print("Yaw-DES ,");
+  file.print("Roll-PID ,");
+  file.print("Pitch-PID ,");
+  file.print("Yaw-PID ,");
+  file.print("motor1 ,");
+  file.print("motor2 ,");
+  file.print("motor3 ,");
+  file.print("motor4 ,");
+  file.println("Arming Status");
   file.close();
   return true;
 }
 bool logData()
 {
-  file.print("Time");
-  file.print(time);
-  file.print("Roll-IMU");
+    if (arm_status != ARMED && log_file_open)
+  {
+    file.close();
+    log_file_open = false;
+
+    return false;
+  }
+  if (sdcard_status != ACTIVE || arm_status != ARMED)
+  {
+
+    return false;
+  }
+
+  if (current_time - sd_log_counter < 10000)
+  {
+
+    return false; // 100 hz
+  }
+  if (!log_file_open )
+  {
+
+    if (!file.open(fileName, O_WRONLY | O_CREAT | O_AT_END)) // check fsBaseFile class open function for why so
+    {
+      // Serial.println("Unable to open/create new file sd card");
+      sdcard_status = NOTPRESENT;
+  
+      return false;
+    }
+    log_file_open = true;
+  }
+
+  sd_log_counter = current_time;
+
+  file.print(current_time);
+  file.print(" ,");
   file.print(roll_IMU);
-  file.print("Pitch-IMU");
+  file.print(" ,");
   file.print(pitch_IMU);
-  file.print("Yaw-IMU");
+  file.print(" ,");
   file.print(yaw_IMU);
-  file.print("Roll-DES");
+  file.print(" ,");
   file.print(roll_des);
-  file.print("Pitch-DES");
+  file.print(" ,");
   file.print(pitch_des);
-  file.print("Yaw-DES");
+  file.print(" ,");
   file.print(yaw_des);
-  file.print("Thro-DES");
+  file.print(" ,");
   file.print(thro_des);
-  file.print("Roll-PID");
+  file.print(" ,");
   file.print(roll_PID);
-  file.print("Pitch-PID");
+  file.print(" ,");
   file.print(pitch_PID);
-  file.print("Yaw-PID");
+  file.print(" ,");
   file.print(yaw_PID);
-  file.print("motor1");
+  file.print(" ,");
   file.print(m1_command_PWM);
-  file.print("motor2");
+  file.print(" ,");
   file.print(m2_command_PWM);
-  file.print("motor3");
+  file.print(" ,");
   file.print(m3_command_PWM);
-  file.print("motor4");
+  file.print(" ,");
   file.print(m4_command_PWM);
-  file.print("Arming Status");
+  file.print(" ,");
   file.println(arm_status);
 
   return true;
@@ -1783,7 +1830,6 @@ void handelAuxChannels()
   }
 }
 
-
 void printArmStatus()
 {
   if (!print_authorisation)
@@ -1881,7 +1927,7 @@ void loop()
   getDesiredState();
 
   //
-  // logData();
+  logData();
   //
   getCommands(); // Pulls current available radio commands
   handelAuxChannels();
