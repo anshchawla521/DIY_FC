@@ -210,12 +210,13 @@ float GyroX_prev, GyroY_prev, GyroZ_prev;
 
 float roll_IMU, pitch_IMU, yaw_IMU;
 
-float AccErrorX = -0.01;
-float AccErrorY = -0.01;
+float AccErrorX = -0.02;
+float AccErrorY = -0.05;
 float AccErrorZ = 0.00;
-float GyroErrorX = -0.12;
-float GyroErrorY = 0.01;
-float GyroErrorZ = -0.03;
+float GyroErrorX = -0.18;
+float GyroErrorY = -0.04;
+float GyroErrorZ = 0.02;
+
 
 float thro_des, roll_des, pitch_des, yaw_des;
 
@@ -247,8 +248,8 @@ float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, moto
 
 // Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
 
-float B_accel = 0.07; // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
-float B_gyro = 0.07;  // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
+float B_accel = 0.14; // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
+float B_gyro = 0.14;  // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
 // Controller:
 float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_il, integral_roll_ol, integral_roll_prev, integral_roll_prev_il, integral_roll_prev_ol, derivative_roll, roll_PID = 0;
 float error_pitch, error_pitch_prev, pitch_des_prev, integral_pitch, integral_pitch_il, integral_pitch_ol, integral_pitch_prev, integral_pitch_prev_il, integral_pitch_prev_ol, derivative_pitch, pitch_PID = 0;
@@ -1185,7 +1186,7 @@ void setup()
                    // initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
-  // calibrateESC();ESC
+  // calibrateESC(); //ESC
   // calculate_IMU_error();
   // calibrateRadioData();
 }
@@ -1859,7 +1860,7 @@ void loop()
   //  printGyroData();
   //   printAccelData();
   //   printMagData();
-  // printRollPitchYaw();
+  printRollPitchYaw();
   // printPIDoutput();
   // printMotorCommands();
   // printBatteryStatus();
