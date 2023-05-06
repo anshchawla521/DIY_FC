@@ -171,7 +171,7 @@ float magy = 0;
 float magz = 0;
 float altitude_from_baro = 0;
 
-unsigned long prev_time, current_time, print_counter;
+unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter;
 float dt;
 bool print_authorisation = false;
 
@@ -201,6 +201,7 @@ float batteryVoltage = 0;
 float batteryCurrent = 0;
 float coreTemp = 0;
 float percentage_time_used_by_code;
+int actual_loop_frequency;
 ////////////////////////////////////IMU related variables////////////////////////////
 float AccX, AccY, AccZ;
 float AccX_prev, AccY_prev, AccZ_prev;
@@ -809,10 +810,10 @@ void loopRate(int freq)
   unsigned long checker = micros();
 
   percentage_time_used_by_code = ((checker - current_time) / invFreq) * 100;
+  actual_loop_frequency = 1000000 / (float)(current_time - prev_time);
   // Sit in loop until appropriate time has passed
   while (invFreq > (checker - current_time))
   {
-    Serial.println("Wasting time");
     checker = micros();
   }
 }
@@ -1115,11 +1116,20 @@ void calculate_IMU_error()
 
 void getBatteryStatus()
 {
+  // run at 10 hz
+  if (current_time - battery_counter < 10000000)
+    return;
+  battery_counter = current_time;
   batteryVoltage = ((analogRead(ADC_BATT_1) * vbat_multiplier * vbat_scale * 3.3)) / vbat_divider / 1024;
   batteryCurrent = analogRead(ADC_CURR_1) * 3.3 * ibata_scale / 1024;
 }
 void getCoreTemp()
 {
+  // run at 1 hz
+  //  Note: Using Unsigned Long data type you shouldn't go below 0.1hz as it is likely to overflow
+  if (current_time - core_temp_counter < 100000000)
+    return;
+  core_temp_counter = current_time;
   coreTemp = analogRead(ATEMP) / 1024 * 3.3;
 }
 
@@ -1144,7 +1154,10 @@ void printPercentageTimeCpuUsed()
   if (!print_authorisation)
     return;
   Serial.print("Percentage Time Used By Code ");
-  Serial.println(percentage_time_used_by_code);
+  Serial.print(percentage_time_used_by_code);
+  Serial.print("% ");
+  Serial.print("Actual Loop Frequency");
+  Serial.println(actual_loop_frequency);
 }
 
 void setup()
