@@ -20,7 +20,7 @@
 #include "src/MadgwickAHRS/src/MadgwickAHRS.h"
 #include "SdFat.h"
 #include "sdios.h"
-#include <Servo.h>
+
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_HMC5883_U.h>
@@ -70,7 +70,7 @@
 #define GYRO_CS_1 PA4
 
 // ---------------------------------------------------------------------------
-Servo motor_1, motor_2, motor_3, motor_4, motor_5, motor_6;
+
 char data;
 
 /*                                       paramters from dump                                      */
@@ -80,8 +80,8 @@ int vbat_divider = 10;
 int vbat_multiplier = 1;
 
 // variables:
-HardwareSerial Serial1(PA3, PA2);
-SBUS sbus(Serial1);
+HardwareSerial Serial2(Serial_RX_2, Serial_TX_2);
+SBUS sbus(Serial2);
 int maxch[16] = {1810, 1810, 1810, 1810, 1810, 1810, 1810, 172, 1187, 1187, 1187, 1187, 1187, 1187, 1187, 1187};
 int minch[16] = {172, 172, 172, 172, 172, 172, 172, 172, 992, 992, 992, 992, 992, 992, 992, 992};
 
@@ -245,8 +245,8 @@ float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, moto
 
 // Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
 
-float B_accel = 0.07;    // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
-float B_gyro = 0.07;      // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
+float B_accel = 0.07; // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
+float B_gyro = 0.07;  // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
 // Controller:
 float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_il, integral_roll_ol, integral_roll_prev, integral_roll_prev_il, integral_roll_prev_ol, derivative_roll, roll_PID = 0;
 float error_pitch, error_pitch_prev, pitch_des_prev, integral_pitch, integral_pitch_il, integral_pitch_ol, integral_pitch_prev, integral_pitch_prev_il, integral_pitch_prev_ol, derivative_pitch, pitch_PID = 0;
@@ -1142,6 +1142,10 @@ void setup()
 
   pinMode(GYRO_CS_1, OUTPUT);
   pinMode(LED_1, OUTPUT);
+  pinMode(MOTOR_1, OUTPUT);
+  pinMode(MOTOR_2, OUTPUT);
+  pinMode(MOTOR_3, OUTPUT);
+  pinMode(MOTOR_4, OUTPUT);
 
   Wire.setSDA(I2C_SDA_2); // SDA
   Wire.setSCL(I2C_SCL_2); // SCL
@@ -1150,22 +1154,15 @@ void setup()
   SPI_1.begin(); // used for IMU
   SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
 
-  sbus.begin();    // Initialize the SBUS object
-  Serial1.flush(); // to empty buffer on reupload of code
+  sbus.begin(); // Initialize the SBUS object
+
   // initialiseCompass();
   // initialiseGps();
   initialiseImu(); // initialize bmi270 in spi mode
-  // initialise_SD(); // Initialize SD card
-
-  motor_1.attach(MOTOR_1, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
-  motor_2.attach(MOTOR_2, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
-  motor_3.attach(MOTOR_3, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
-  motor_4.attach(MOTOR_4, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
-  motor_5.attach(MOTOR_5, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
-  motor_6.attach(MOTOR_6, MIN_PULSE_LENGTH, MAX_PULSE_LENGTH);
+                   // initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
-  // calibrateESC();
+  // calibrateESC();ESC 
   // calculate_IMU_error();
   // calibrateRadioData();
 }
@@ -1386,29 +1383,138 @@ void controlMixer()
   m6_command_scaled = 0;
 }
 
+int no_of_pulses_generated = 0;
+unsigned long timer;
+unsigned long start_of_pulse;
+
+void scaleCommands()
+{
+  m1_command_PWM = m1_command_scaled * 125 + 125;
+  m2_command_PWM = m2_command_scaled * 125 + 125;
+  m3_command_PWM = m3_command_scaled * 125 + 125;
+  m4_command_PWM = m4_command_scaled * 125 + 125;
+  m5_command_PWM = m5_command_scaled * 125 + 125;
+  m6_command_PWM = m6_command_scaled * 125 + 125;
+  // Constrain commands to motors to the max and min limits
+  m1_command_PWM = constrain(m1_command_PWM, 120, 250);
+  m2_command_PWM = constrain(m2_command_PWM, 120, 250);
+  m3_command_PWM = constrain(m3_command_PWM, 120, 250);
+  m4_command_PWM = constrain(m4_command_PWM, 120, 250);
+  m5_command_PWM = constrain(m5_command_PWM, 120, 250);
+  m6_command_PWM = constrain(m6_command_PWM, 120, 250);
+}
 void commandMotors()
 { /*DESCRIPTION : This function constraints and transmits the values to the ESC*/
-  m1_command_PWM = m1_command_scaled * 1000 + 1000;
-  m2_command_PWM = m2_command_scaled * 1000 + 1000;
-  m3_command_PWM = m3_command_scaled * 1000 + 1000;
-  m4_command_PWM = m4_command_scaled * 1000 + 1000;
-  m5_command_PWM = m5_command_scaled * 1000 + 1000;
-  m6_command_PWM = m6_command_scaled * 1000 + 1000;
-  // Constrain commands to motors to the max and min limits
-  m1_command_PWM = constrain(m1_command_PWM, 1000, 2000);
-  m2_command_PWM = constrain(m2_command_PWM, 1000, 2000);
-  m3_command_PWM = constrain(m3_command_PWM, 1000, 2000);
-  m4_command_PWM = constrain(m4_command_PWM, 1000, 2000);
-  m5_command_PWM = constrain(m5_command_PWM, 1000, 2000);
-  m6_command_PWM = constrain(m6_command_PWM, 1000, 2000);
+  /*NOTE : This function shall not be used with protocols dont support rates less
+   than 2000hz as the PID loop is will get bottlenecked if we go lower than that*/
 
   // NOW generate PWM pulse for motors
-  motor_1.writeMicroseconds(m1_command_PWM);
-  motor_2.writeMicroseconds(m2_command_PWM);
-  motor_3.writeMicroseconds(m3_command_PWM);
-  motor_4.writeMicroseconds(m4_command_PWM);
-  // motor_5.writeMicroseconds(m5_command_PWM);
-  // motor_6.writeMicroseconds(m6_command_PWM);
+
+  digitalWrite(MOTOR_1, HIGH);
+  digitalWrite(MOTOR_2, HIGH);
+  digitalWrite(MOTOR_3, HIGH);
+  digitalWrite(MOTOR_4, HIGH);
+  // digitalWrite(MOTOR_5, HIGH);
+  // digitalWrite(MOTOR_6, HIGH);
+  no_of_pulses_generated = 0;
+  start_of_pulse = micros();
+
+  bool flagM1 = false;
+  bool flagM2 = false;
+  bool flagM3 = false;
+  bool flagM4 = false;
+  // bool flagM5 = false;
+  // bool flagM6 = false;
+
+  while (no_of_pulses_generated < 4) // no of motors
+  {                                  // generate pulses
+    timer = micros();
+    if (timer - start_of_pulse >= m1_command_PWM && !flagM1)
+    {
+      digitalWrite(MOTOR_1, LOW);
+      no_of_pulses_generated++;
+      flagM1 = true;
+    }
+    if (timer - start_of_pulse >= m2_command_PWM && !flagM2)
+    {
+      digitalWrite(MOTOR_2, LOW);
+      no_of_pulses_generated++;
+      flagM2 = true;
+    }
+    if (timer - start_of_pulse >= m3_command_PWM && !flagM3)
+    {
+      digitalWrite(MOTOR_3, LOW);
+      no_of_pulses_generated++;
+      flagM3 = true;
+    }
+    if (timer - start_of_pulse >= m4_command_PWM && !flagM4)
+    {
+      digitalWrite(MOTOR_4, LOW);
+      no_of_pulses_generated++;
+      flagM4 = true;
+    }
+  }
+}
+
+void calibrateESC()
+{
+
+  while (!Serial)
+  {
+  }
+  Serial.println("READY - PLEASE SEND INSTRUCTIONS AS FOLLOWING :");
+  Serial.println("\t0 : Thottle Pass Thru Mode");
+  Serial.println("\t1 : Continue the FC code\n");
+
+  while (true)
+  {
+    if (Serial.available())
+    {
+      data = Serial.read();
+      switch (data)
+      {
+      case 48:
+        Serial.println("Throttle Pass thru Mode active");
+        while (true)
+        {
+          prev_time = current_time;
+          current_time = micros();
+
+          if (Serial.available() > 0)
+          {
+            if (Serial.read() == 49)
+              return; // exit and continue FC code
+          }
+          getCommands();
+          getDesiredState();
+          printDesiredState();
+          printMotorCommands();
+          controlPrintRate(50);
+          m1_command_PWM = thro_des * 125 + 125;
+          m2_command_PWM = thro_des * 125 + 125;
+          m3_command_PWM = thro_des * 125 + 125;
+          m4_command_PWM = thro_des * 125 + 125;
+          m5_command_PWM = thro_des * 125 + 125;
+          m6_command_PWM = thro_des * 125 + 125;
+          // Constrain commands to motors to the max and min limits
+          m1_command_PWM = constrain(m1_command_PWM, 125, 250);
+          m2_command_PWM = constrain(m2_command_PWM, 125, 250);
+          m3_command_PWM = constrain(m3_command_PWM, 125, 250);
+          m4_command_PWM = constrain(m4_command_PWM, 125, 250);
+          m5_command_PWM = constrain(m5_command_PWM, 125, 250);
+          m6_command_PWM = constrain(m6_command_PWM, 125, 250);
+          commandMotors();
+          loopRate(2000);
+        }
+
+        break;
+
+      case 49:
+        return;
+        break; // redundant
+      }
+    }
+  }
 }
 void printMotorCommands()
 {
@@ -1597,83 +1703,6 @@ void calibrateRadioData()
   Serial.println("};");
 }
 
-void calibrateESC()
-{
-  motor_1.writeMicroseconds(1200); // writing a 1200us pulse so motors dont initialize
-  motor_2.writeMicroseconds(1200);
-  motor_3.writeMicroseconds(1200);
-  motor_4.writeMicroseconds(1200);
-  while (!Serial)
-  {
-  }
-  Serial.println("READY - PLEASE SEND INSTRUCTIONS AS FOLLOWING :");
-  Serial.println("\t0 : Send min throttle");
-  Serial.println("\t1 : Send max throttle");
-  Serial.println("\t2 : Run test function");
-  Serial.println("\t3 : Continue the FC code\n");
-
-  while (true)
-  {
-    if (Serial.available())
-    {
-      data = Serial.read();
-
-      switch (data)
-      {
-      // 0
-      case 48:
-        Serial.println("Sending minimum throttle");
-        motor_1.writeMicroseconds(MIN_PULSE_LENGTH);
-        motor_2.writeMicroseconds(MIN_PULSE_LENGTH);
-        motor_3.writeMicroseconds(MIN_PULSE_LENGTH);
-        motor_4.writeMicroseconds(MIN_PULSE_LENGTH);
-        break;
-
-      // 1
-      case 49:
-        Serial.println("Sending maximum throttle");
-        motor_1.writeMicroseconds(MAX_PULSE_LENGTH);
-        motor_2.writeMicroseconds(MAX_PULSE_LENGTH);
-        motor_3.writeMicroseconds(MAX_PULSE_LENGTH);
-        motor_4.writeMicroseconds(MAX_PULSE_LENGTH);
-        break;
-
-      // 2
-      case 50:
-        Serial.print("Running test in 3");
-        delay(1000);
-        Serial.print(" 2");
-        delay(1000);
-        Serial.println(" 1...");
-        delay(1000);
-        for (int i = MIN_PULSE_LENGTH; i <= MAX_PULSE_LENGTH; i += 5)
-        {
-          Serial.print("Pulse length = ");
-          Serial.println(i);
-
-          motor_1.writeMicroseconds(i);
-          motor_2.writeMicroseconds(i);
-          motor_3.writeMicroseconds(i);
-          motor_4.writeMicroseconds(i);
-
-          delay(200);
-        }
-
-        Serial.println("STOP");
-        motor_1.writeMicroseconds(MIN_PULSE_LENGTH);
-        motor_2.writeMicroseconds(MIN_PULSE_LENGTH);
-        motor_3.writeMicroseconds(MIN_PULSE_LENGTH);
-        motor_4.writeMicroseconds(MIN_PULSE_LENGTH);
-
-        break;
-
-      case 51:
-        return;
-        break; // unreacheable code
-      }
-    }
-  }
-}
 void throttleCut()
 {
   // used 1800 instead of 1500 so that 3 pos switches dont cause problem
@@ -1700,12 +1729,12 @@ void throttleCut()
 
   if (arm_status != ARMED)
   {
-    m1_command_scaled = 0;
-    m2_command_scaled = 0;
-    m3_command_scaled = 0;
-    m4_command_scaled = 0;
-    m5_command_scaled = 0;
-    m6_command_scaled = 0;
+    m1_command_scaled = -0.1;
+    m2_command_scaled = -0.1;
+    m3_command_scaled = -0.1;
+    m4_command_scaled = -0.1;
+    m5_command_scaled = -0.1;
+    m6_command_scaled = -0.1;
   }
 }
 void printArmStatus()
@@ -1768,8 +1797,8 @@ void loop()
   // Note: its Important to not comment out the the controlPrintRate function.
   // Note: Its not recommended to go above/below 100 hz print speed
 
-   printRadioData();
-  //  printDesiredState();
+  printRadioData();
+  printDesiredState();
   //  printGyroData();
   //   printAccelData();
   //   printMagData();
@@ -1803,6 +1832,7 @@ void loop()
 
   throttleCut();
   checkFailsafe(); // this function is used instead of failsafe in drehmflight
+  scaleCommands();
   commandMotors();
 
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup

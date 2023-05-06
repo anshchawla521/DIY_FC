@@ -74,3 +74,5 @@ Will be uploaded soon
 - https://www.st.com/resource/en/reference_manual/dm00031020-stm32f405-415-stm32f407-417-stm32f427-437-and-stm32f429-439-advanced-arm-based-32-bit-mcus-stmicroelectronics.pdf
 - https://www.youtube.com/watch?v=AjN58ceQaF4
 - https://github.com/stm32duino/Arduino_Core_STM32/wiki/API
+
+Typical SBUS packet looks like 0F E5 03 1F F8 C0 07 3E F0 81 0F 7C E0 03 06 F8 80 91 3D F0 81 0F 7C 00 00
