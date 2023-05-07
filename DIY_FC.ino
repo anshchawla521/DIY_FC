@@ -115,7 +115,8 @@ ARM_STATUS arm_status = DISARMED;
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
 // #define KB33COMPASS
-#define SDCARD
+// #define SDCARD
+#define SPL06BAROMETER
 
 // Uncomment only one full scale gyro range (deg/sec)
 // #define GYRO_125DPS
@@ -178,6 +179,12 @@ bool log_file_open = false;
 char fileName[13] = FILE_BASE_NAME "00.csv";
 #endif
 
+#ifndef SPL06BAROMETER
+peripherals barometer_status = DISABLED;
+#else
+peripherals barometer_status = ACTIVE;
+#endif
+
 /*                                         RATES                                                         */
 
 #define ROLL_RATE 45          // in deg/s
@@ -192,9 +199,19 @@ SPIClass SPI_2(SPI_MOSI_2, SPI_MISO_2, SPI_SCK_2);
 float magx = 0;
 float magy = 0;
 float magz = 0;
-float altitude_from_baro = 0;
 
-unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter;
+int16_t c0, c1, c01, c11, c20, c21, c30;
+int32_t c00, c10;
+uint8_t buffer_cofficients[18] = {0};
+double altitude_from_baro = 0;
+double altitude_from_baro_prev = 0;
+double altitude_at_takeoff = 0;
+double pressure;
+#define K_pressure 1572864   // from data sheet
+#define K_temperature 524288 // from data sheet
+double temperature;
+
+unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter, altitude_counter;
 float dt;
 bool print_authorisation = false;
 
@@ -272,6 +289,7 @@ float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, moto
 
 float B_accel = 0.14; // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
 float B_gyro = 0.14;  // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
+float B_baro = 0.50;  // baro altitude low pass filter
 // Controller:
 float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_il, integral_roll_ol, integral_roll_prev, integral_roll_prev_il, integral_roll_prev_ol, derivative_roll, roll_PID = 0;
 float error_pitch, error_pitch_prev, pitch_des_prev, integral_pitch, integral_pitch_il, integral_pitch_ol, integral_pitch_prev, integral_pitch_prev_il, integral_pitch_prev_ol, derivative_pitch, pitch_PID = 0;
@@ -985,6 +1003,176 @@ void printGPSData()
 
 #endif
 
+#ifdef SPL06BAROMETER
+bool initialiseBaro()
+{
+  if (isBaroActive() == true)
+  {
+    Wire.beginTransmission(0x76);
+    Wire.write(0x08);
+    Wire.endTransmission();
+    Wire.requestFrom(0x76, 1);
+
+    while (Wire.available() > 0)
+    {
+      if ((Wire.read() & 0b01000000) != 0b01000000)
+      {
+        // also read sensor id reg
+        Serial.println("Sensor Initialisation failed - spl06");
+        barometer_status = NOTPRESENT;
+        return false;
+      }
+    }
+
+    Wire.beginTransmission(0x76);
+    Wire.write(0x06);
+    Wire.write(0x71); // write to pressure config // 128 hz with oversampling of 2 = 256 hz
+    Wire.write(0xf0); // write to temperature config  // 128 hz no over smapling
+    Wire.write(0x07); // write to meas_cfg
+    Wire.endTransmission();
+    return true;
+  }
+}
+bool isBaroActive()
+{
+  Wire.beginTransmission(0x76);
+  if (Wire.endTransmission() != 0) // device not present at the address
+  {
+    barometer_status = NOTPRESENT;
+    Serial.println("Baro not present");
+    return false;
+  }
+  else
+  {
+    barometer_status = ACTIVE;
+    return true;
+  }
+}
+void calibrateBaroData()
+{
+#define NUMBER_OF_SAMPLES 40
+  altitude_at_takeoff = 0;
+  for (int i = 0; i < NUMBER_OF_SAMPLES; i++)
+  {
+    getAbosluteAltitudeFromBaro();
+    altitude_at_takeoff += altitude_from_baro / NUMBER_OF_SAMPLES;
+    delay(100);
+  }
+}
+
+void getAbosluteAltitudeFromBaro()
+{
+  /* Description : This functions Gets one altitude data from baro*/
+
+  if (barometer_status != ACTIVE)
+    return;
+
+  Wire.beginTransmission(0x76);
+  Wire.write(0x08);
+  if (Wire.endTransmission() != 0)
+  {
+    barometer_status = NOTPRESENT;
+    return;
+  }
+  Wire.requestFrom(0x76, 1);
+  uint8_t meas_cfg;
+  while (Wire.available() > 0)
+  {
+    meas_cfg = Wire.read();
+  }
+
+  if ((meas_cfg & 0b10000000) == 0b10000000)
+  {
+    // read cofficients
+    Wire.beginTransmission(0x76);
+    Wire.write(0x10);
+    Wire.endTransmission();
+    Wire.requestFrom(0x76, 18); // request pressure and temp data
+    byte i = 0;
+    while (Wire.available())
+    {
+      if (i >= 18)
+      {
+        // error
+        Serial.println("ERRor in getting baro reading");
+        barometer_status = NOTPRESENT;
+        break;
+      }
+      buffer_cofficients[i++] = Wire.read();
+    }
+    c0 = (buffer_cofficients[0] & 0x80 ? 0xFF : 0) << 12 | buffer_cofficients[0] << 4 | buffer_cofficients[1] >> 4; // was 12 bit so had to extend msb manually
+    c1 = (buffer_cofficients[1] & 0x08 ? 0xFF : 0) << 12 | (buffer_cofficients[1] & 0x0f) << 8 | buffer_cofficients[2];
+    c00 = (buffer_cofficients[3] & 0x80 ? 0xFFFF : 0) << 20 | buffer_cofficients[3] << 12 | buffer_cofficients[4] << 4 | buffer_cofficients[5] >> 4; // was 20 bit so had to extend msb manually
+    c10 = (buffer_cofficients[5] & 0x08 ? 0xFFFF : 0) << 20 | (buffer_cofficients[5] & 0x0f) << 16 | buffer_cofficients[6] << 8 | buffer_cofficients[7];
+
+    c01 = buffer_cofficients[8] << 8 | buffer_cofficients[9];
+    c11 = buffer_cofficients[10] << 8 | buffer_cofficients[11];
+    c20 = buffer_cofficients[12] << 8 | buffer_cofficients[13];
+    c21 = buffer_cofficients[14] << 8 | buffer_cofficients[15];
+    c30 = buffer_cofficients[16] << 8 | buffer_cofficients[17];
+  }
+  if ((meas_cfg & 0b00010000) == 0b00010000)
+  {
+    // new pressure data available;
+    // read temperature then only
+
+    Wire.beginTransmission(0x76);
+    Wire.write(0x00);
+    Wire.endTransmission();
+    Wire.requestFrom(0x76, 6); // request pressure and temp data
+    byte i = 0;
+    while (Wire.available())
+    {
+      if (i >= 6)
+      {
+        // error
+        Serial.println("ERRor in getting baro reading");
+        barometer_status = NOTPRESENT;
+        break;
+      }
+      buffer_cofficients[i++] = Wire.read();
+    }
+
+    pressure = int32_t((buffer_cofficients[0] & 0x80 ? 0xFF : 0) << 24 | (buffer_cofficients[0] << 16 | buffer_cofficients[1] << 8 | buffer_cofficients[2])); // was 24 bit so had to add msb // also it is unsigned so before converting to float have to convert to int
+    temperature = int32_t((buffer_cofficients[3] & 0x80 ? 0xFF : 0) << 24 | (buffer_cofficients[3] << 16 | buffer_cofficients[4] << 8 | buffer_cofficients[5]));
+    pressure = pressure / float(K_pressure);
+    temperature = temperature / float(K_temperature);
+    pressure = double(c00) + pressure * (double(c10) + pressure * (double(c20) + pressure * double(c30))) + temperature * double(c01) + temperature * pressure * (double(c11) + pressure * double(c21));
+    temperature = double(c0) * 0.5 + double(c1) * temperature;
+  }
+
+  altitude_from_baro = 44330 * (1.0 - pow(pressure / 100.0 / 1013.25, 0.1903));
+  // get data from baro
+}
+void getBaroData()
+{
+  // get data only at 200 hz
+  if (barometer_status != ACTIVE)
+    return;
+  if (current_time - altitude_counter < 5000) // 200 hz
+    return;
+  altitude_counter = current_time;
+  altitude_from_baro_prev = altitude_from_baro;
+
+  getAbosluteAltitudeFromBaro();
+  altitude_from_baro = altitude_from_baro - altitude_at_takeoff; // new altitude
+
+  altitude_from_baro = (1.0 - B_baro) * altitude_from_baro_prev + B_baro * altitude_from_baro; // altitude low pass filter
+}
+void printBaroData()
+{
+  if (barometer_status != ACTIVE)
+    return;
+  if (!print_authorisation)
+    return;
+  Serial.print(" Pressure Reading : ");
+  Serial.print(pressure);
+  Serial.print(" Temperature Reading : ");
+  Serial.print(temperature);
+  Serial.print(" Altitude Reading : ");
+  Serial.println(altitude_from_baro);
+}
+#endif
 void getIMUdata()
 {
   AccX = (int16_t)read_register_spi(0x0C, GYRO_CS_1, true);
@@ -1199,6 +1387,7 @@ void setup()
 
   Wire.setSDA(I2C_SDA_2); // SDA
   Wire.setSCL(I2C_SCL_2); // SCL
+  Wire.begin();
   Serial.begin(115200);
   filter.begin(1600);
   SPI_1.begin(); // used for IMU
@@ -1208,10 +1397,13 @@ void setup()
 
   // initialiseCompass();
   // initialiseGps();
+
+  initialiseBaro();
   initialiseImu(); // initialize bmi270 in spi mode
-  initialise_SD(); // Initialize SD card
+  // initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
+  calibrateBaroData(); // takes about 3 seconds
   // calibrateESC(); //ESC
   // calculate_IMU_error();
   // calibrateRadioData();
@@ -1929,13 +2121,14 @@ void loop()
   //  printGyroData();
   //   printAccelData();
   //   printMagData();
-  printRollPitchYaw();
+  // printRollPitchYaw();
   // printPIDoutput();
   // printMotorCommands();
   // printBatteryStatus();
   // printCoreTemp();
   // printArmStatus();
   printPercentageTimeCpuUsed();
+  printBaroData();
   controlPrintRate(100);
 
   getIMUdata();
@@ -1946,11 +2139,13 @@ void loop()
   // getCompassData();
   // printCompassData();
 
+  getBaroData();
+
   Madgwick();
   getDesiredState();
 
   //
-  logData();
+  // logData();
   //
   getCommands(); // Pulls current available radio commands
   handelAuxChannels();
