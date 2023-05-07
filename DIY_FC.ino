@@ -115,7 +115,7 @@ ARM_STATUS arm_status = DISARMED;
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
 // #define KB33COMPASS
-// #define SDCARD
+#define SDCARD
 #define SPL06BAROMETER
 
 // Uncomment only one full scale gyro range (deg/sec)
@@ -153,6 +153,7 @@ peripherals compass_status = ACTIVE;
 #ifndef SDCARD
 peripherals sdcard_status = DISABLED;
 #else
+#warning Dont Forget to un comment the initialse_sd and log data function
 peripherals sdcard_status = ACTIVE;
 // 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
 #define SD_FAT_TYPE 3
@@ -1400,7 +1401,7 @@ void setup()
 
   initialiseBaro();
   initialiseImu(); // initialize bmi270 in spi mode
-  // initialise_SD(); // Initialize SD card
+  initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
   calibrateBaroData(); // takes about 3 seconds
@@ -1483,7 +1484,10 @@ bool initialise_SD()
   file.print("Altitude ,");
   file.print("Flight Mode ,");
   file.print("Fail safe ,");
-  file.println("Loop Frequency");
+  file.print("Loop Frequency ,");
+  file.print("KP (PRY) ,");
+  file.print("KI (PRY) ,");
+  file.println("KD (PRY)");
 
   file.close();
   return true;
@@ -1565,7 +1569,25 @@ bool logData()
   file.print(" ,");
   file.print(failsafe);
   file.print(" ,");
-  file.println(actual_loop_frequency);
+  file.print(actual_loop_frequency);
+  file.print(" ,");
+  file.print(Kp_pitch_angle);
+  file.print(" ");
+  file.print(Kp_roll_angle);
+  file.print(" ");
+  file.print(Kp_yaw);
+  file.print(" ,");
+  file.print(Ki_pitch_angle);
+  file.print(" ");
+  file.print(Ki_roll_angle);
+  file.print(" ");
+  file.print(Ki_yaw);
+  file.print(" ,");
+  file.print(Kd_pitch_angle);
+  file.print(" ");
+  file.print(Kd_roll_angle);
+  file.print(" ");
+  file.println(Kd_yaw);
 
   return true;
 }
@@ -2128,7 +2150,7 @@ void loop()
   // printCoreTemp();
   // printArmStatus();
   printPercentageTimeCpuUsed();
-  printBaroData();
+  // printBaroData();
   controlPrintRate(100);
 
   getIMUdata();
@@ -2145,7 +2167,7 @@ void loop()
   getDesiredState();
 
   //
-  // logData();
+  logData();
   //
   getCommands(); // Pulls current available radio commands
   handelAuxChannels();
