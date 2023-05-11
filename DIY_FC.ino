@@ -116,7 +116,8 @@ ARM_STATUS arm_status = DISARMED;
 // #define M8nGPS
 // #define KB33COMPASS
 #define SDCARD
-#define SPL06BAROMETER
+// #define SPL06BAROMETER
+
 
 // Uncomment only one full scale gyro range (deg/sec)
 // #define GYRO_125DPS
@@ -175,7 +176,8 @@ FsFile file;
 #endif // SD_FAT_TYPE
 bool log_file_open = false;
 
-#define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(4), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
+#define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(10), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
+// switching frequency to 10 mhz
 #define FILE_BASE_NAME "LOG"
 char fileName[13] = FILE_BASE_NAME "00.csv";
 #endif
@@ -1075,6 +1077,7 @@ void getAbosluteAltitudeFromBaro()
     barometer_status = NOTPRESENT;
     return;
   }
+
   Wire.requestFrom(0x76, 1);
   uint8_t meas_cfg;
   while (Wire.available() > 0)
@@ -1090,6 +1093,7 @@ void getAbosluteAltitudeFromBaro()
     Wire.endTransmission();
     Wire.requestFrom(0x76, 18); // request pressure and temp data
     byte i = 0;
+
     while (Wire.available())
     {
       if (i >= 18)
@@ -1101,6 +1105,7 @@ void getAbosluteAltitudeFromBaro()
       }
       buffer_cofficients[i++] = Wire.read();
     }
+
     c0 = (buffer_cofficients[0] & 0x80 ? 0xFF : 0) << 12 | buffer_cofficients[0] << 4 | buffer_cofficients[1] >> 4; // was 12 bit so had to extend msb manually
     c1 = (buffer_cofficients[1] & 0x08 ? 0xFF : 0) << 12 | (buffer_cofficients[1] & 0x0f) << 8 | buffer_cofficients[2];
     c00 = (buffer_cofficients[3] & 0x80 ? 0xFFFF : 0) << 20 | buffer_cofficients[3] << 12 | buffer_cofficients[4] << 4 | buffer_cofficients[5] >> 4; // was 20 bit so had to extend msb manually
@@ -1112,6 +1117,7 @@ void getAbosluteAltitudeFromBaro()
     c21 = buffer_cofficients[14] << 8 | buffer_cofficients[15];
     c30 = buffer_cofficients[16] << 8 | buffer_cofficients[17];
   }
+
   if ((meas_cfg & 0b00010000) == 0b00010000)
   {
     // new pressure data available;
@@ -1122,6 +1128,7 @@ void getAbosluteAltitudeFromBaro()
     Wire.endTransmission();
     Wire.requestFrom(0x76, 6); // request pressure and temp data
     byte i = 0;
+
     while (Wire.available())
     {
       if (i >= 6)
@@ -1154,10 +1161,8 @@ void getBaroData()
     return;
   altitude_counter = current_time;
   altitude_from_baro_prev = altitude_from_baro;
-
   getAbosluteAltitudeFromBaro();
-  altitude_from_baro = altitude_from_baro - altitude_at_takeoff; // new altitude
-
+  altitude_from_baro = altitude_from_baro - altitude_at_takeoff;                               // new altitude
   altitude_from_baro = (1.0 - B_baro) * altitude_from_baro_prev + B_baro * altitude_from_baro; // altitude low pass filter
 }
 void printBaroData()
@@ -1380,11 +1385,17 @@ void setup()
 {
 
   pinMode(GYRO_CS_1, OUTPUT);
+  pinMode(OSD_CS_1, OUTPUT);
+  pinMode(SDCARD_CS_1, OUTPUT);
   pinMode(LED_1, OUTPUT);
   pinMode(MOTOR_1, OUTPUT);
   pinMode(MOTOR_2, OUTPUT);
   pinMode(MOTOR_3, OUTPUT);
   pinMode(MOTOR_4, OUTPUT);
+  // so that all spi devices are deselected
+  digitalWrite(OSD_CS_1, HIGH);
+  digitalWrite(GYRO_CS_1, HIGH);
+  digitalWrite(SDCARD_CS_1, HIGH);
 
   Wire.setSDA(I2C_SDA_2); // SDA
   Wire.setSCL(I2C_SCL_2); // SCL
@@ -1399,12 +1410,12 @@ void setup()
   // initialiseCompass();
   // initialiseGps();
 
-  initialiseBaro();
+  // initialiseBaro();
   initialiseImu(); // initialize bmi270 in spi mode
   initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
-  calibrateBaroData(); // takes about 3 seconds
+  // calibrateBaroData(); // takes about 3 seconds
   // calibrateESC(); //ESC
   // calculate_IMU_error();
   // calibrateRadioData();
@@ -1512,20 +1523,19 @@ bool logData()
 
     return false; // 100 hz
   }
+  sd_log_counter = current_time;
   if (!log_file_open)
   {
 
     if (!file.open(fileName, O_WRONLY | O_CREAT | O_AT_END)) // check fsBaseFile class open function for why so
     {
-      // Serial.println("Unable to open/create new file sd card");
+      Serial.println("Unable to open/create new file sd card");
       sdcard_status = NOTPRESENT;
 
       return false;
     }
     log_file_open = true;
   }
-
-  sd_log_counter = current_time;
 
   file.print(current_time);
   file.print(" ,");
@@ -2149,7 +2159,10 @@ void loop()
   // printBatteryStatus();
   // printCoreTemp();
   // printArmStatus();
-  printPercentageTimeCpuUsed();
+
+ printPercentageTimeCpuUsed();
+
+
   // printBaroData();
   controlPrintRate(100);
 
@@ -2158,29 +2171,38 @@ void loop()
   // getGpsData();
   // printGPSData();
 
+
   // getCompassData();
   // printCompassData();
 
-  getBaroData();
+  // getBaroData();
+
 
   Madgwick();
   getDesiredState();
 
+
   //
-  logData();
+  // logData();
+
   //
   getCommands(); // Pulls current available radio commands
   handelAuxChannels();
   handelFlightMode(); // PID loops goes inside this
   controlMixer();
 
+
   checkForSafety(); // this function is used instead of failsafe in drehmflight
   scaleCommands();
   commandMotors();
 
+
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
   getBatteryStatus();
   getCoreTemp();
+
+
   //// Regulate loop rate
   loopRate(1600); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
+
 }
