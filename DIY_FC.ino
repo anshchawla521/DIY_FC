@@ -79,9 +79,21 @@ int ibata_scale = 386;
 int vbat_divider = 10;
 int vbat_multiplier = 1;
 
+/*                                         Frequencies                                       */
+unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter, altitude_counter;
+float dt;
+bool print_authorisation = false;
+
+//  Note: Using Unsigned Long data type you shouldn't go below 0.1hz as it is likely to overflow
+// Note: Dont go above 2000 hz at all
+// Note: if you eneter anything greater than the LOOP frequency it would be caped at the loop frequency
+#define ARMED_SDCARD_LOG_FREQUENCY 100
+#define DISARMED_SDCARD_LOG_FREQUENCY 100
+#define SAVE_SDCARD_FREQUENCY 10
+#define LOOP_FREQUENCY 1600
+#define PRINT_FREQUENCY 100
 // variables:
-HardwareSerial Serial2(Serial_RX_2, Serial_TX_2);
-SBUS sbus(Serial2);
+
 int maxch[16] = {1810, 1810, 1810, 1810, 1810, 1810, 1810, 172, 1187, 1187, 1187, 1187, 1187, 1187, 1187, 1187};
 int minch[16] = {172, 172, 172, 172, 172, 172, 172, 172, 992, 992, 992, 992, 992, 992, 992, 992};
 
@@ -115,9 +127,8 @@ ARM_STATUS arm_status = DISARMED;
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
 // #define KB33COMPASS
-#define SDCARD
-// #define SPL06BAROMETER
-
+// #define SDCARD
+#define SPL06BAROMETER
 
 // Uncomment only one full scale gyro range (deg/sec)
 // #define GYRO_125DPS
@@ -196,8 +207,11 @@ peripherals barometer_status = ACTIVE;
 #define MIN_PULSE_LENGTH 1000 // Minimum pulse length in µs
 #define MAX_PULSE_LENGTH 2000 // Maximum pulse length in µs
 
+HardwareSerial Serial2(Serial_RX_2, Serial_TX_2);
+SBUS sbus(Serial2);
 SPIClass SPI_1(SPI_MOSI_1, SPI_MISO_1, SPI_SCK_1);
 SPIClass SPI_2(SPI_MOSI_2, SPI_MISO_2, SPI_SCK_2);
+TwoWire Wire2(I2C_SDA_2, I2C_SCL_2);
 
 float magx = 0;
 float magy = 0;
@@ -213,10 +227,6 @@ double pressure;
 #define K_pressure 1572864   // from data sheet
 #define K_temperature 524288 // from data sheet
 double temperature;
-
-unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter, altitude_counter;
-float dt;
-bool print_authorisation = false;
 
 int channels[16] = {0};
 bool failsafe = false;
@@ -840,7 +850,7 @@ bool initialiseImu()
     return true;
 }
 
-void loopRate(int freq)
+void loopRate(int freq = LOOP_FREQUENCY)
 {
   // DESCRIPTION: Regulate main loop rate to specified frequency in Hz
   /*
@@ -870,8 +880,8 @@ void initialiseCompass()
 }
 bool isCompassActive()
 {
-  Wire.beginTransmission(0x1E);
-  if (Wire.endTransmission() != 0) // device not present at the address
+  Wire2.beginTransmission(0x1E);
+  if (Wire2.endTransmission() != 0) // device not present at the address
   {
     compass_status = NOTPRESENT;
     return false;
@@ -886,10 +896,10 @@ void getCompassData()
 {
   if (compass_status != ACTIVE)
     return;
-  Wire.beginTransmission(118); // 3 addresses: 0x76,0x77,0x1E (0x76=118)
+  Wire2.beginTransmission(118); // 3 addresses: 0x76,0x77,0x1E (0x76=118)
   sensors_event_t event;
   mag.getEvent(&event); // get data
-  if (Wire.endTransmission() != 0)
+  if (Wire2.endTransmission() != 0)
   {
     compass_status = NOTPRESENT;
     return;
@@ -1011,14 +1021,20 @@ bool initialiseBaro()
 {
   if (isBaroActive() == true)
   {
-    Wire.beginTransmission(0x76);
-    Wire.write(0x08);
-    Wire.endTransmission();
-    Wire.requestFrom(0x76, 1);
+    delay(100); // datasheet recommends 40
+    Wire2.beginTransmission(0x76);
+    Wire2.write(0x0C);
+    Wire2.write(0x09); // soft reset
+    Wire2.endTransmission();
+    delay(100); // data sheet recommends 40
+    Wire2.beginTransmission(0x76);
+    Wire2.write(0x08);
+    Wire2.endTransmission();
+    Wire2.requestFrom(0x76, 1);
 
-    while (Wire.available() > 0)
+    while (Wire2.available() > 0)
     {
-      if ((Wire.read() & 0b01000000) != 0b01000000)
+      if ((Wire2.read() & 0b01000000) != 0b01000000)
       {
         // also read sensor id reg
         Serial.println("Sensor Initialisation failed - spl06");
@@ -1027,19 +1043,68 @@ bool initialiseBaro()
       }
     }
 
-    Wire.beginTransmission(0x76);
-    Wire.write(0x06);
-    Wire.write(0x71); // write to pressure config // 128 hz with oversampling of 2 = 256 hz
-    Wire.write(0xf0); // write to temperature config  // 128 hz no over smapling
-    Wire.write(0x07); // write to meas_cfg
-    Wire.endTransmission();
+    Wire2.beginTransmission(0x76);
+    Wire2.write(0x28);
+    Wire2.write(0xff); // set cofficient src external
+    Wire2.endTransmission();
+    Wire2.beginTransmission(0x76);
+    Wire2.write(0x06);
+    Wire2.write(0x70); // write to pressure config // 128 hz with no over sampling
+    Wire2.write(0xf0); // write to temperature config  // 128 hz no over sampling
+    Wire2.write(0x07); // write to meas_cfg
+    Wire2.endTransmission();
+
+    delayMicroseconds(2);
+
+    uint8_t meas_cfg = 0;
+    while ((meas_cfg & 0b10000000) == 0b10000000)
+    {
+      delay(100);
+      Serial.println("Reading Cofficients");
+      Wire2.requestFrom(0x76, 1);
+      while (Wire2.available() > 0)
+      {
+        meas_cfg = Wire2.read();
+      }
+    }
+
+    // read cofficients
+    Wire2.beginTransmission(0x76);
+    Wire2.write(0x10);
+    Wire2.endTransmission();
+    Wire2.requestFrom(0x76, 18); // request pressure and temp data
+    byte i = 0;
+
+    while (Wire2.available())
+    {
+      if (i >= 18)
+      {
+        // error
+        Serial.println("ERRor in getting baro reading");
+        barometer_status = NOTPRESENT;
+        break;
+      }
+      buffer_cofficients[i++] = Wire2.read();
+    }
+
+    c0 = (buffer_cofficients[0] & 0x80 ? 0xFF : 0) << 12 | buffer_cofficients[0] << 4 | buffer_cofficients[1] >> 4; // was 12 bit so had to extend msb manually
+    c1 = (buffer_cofficients[1] & 0x08 ? 0xFF : 0) << 12 | (buffer_cofficients[1] & 0x0f) << 8 | buffer_cofficients[2];
+    c00 = (buffer_cofficients[3] & 0x80 ? 0xFFFF : 0) << 20 | buffer_cofficients[3] << 12 | buffer_cofficients[4] << 4 | buffer_cofficients[5] >> 4; // was 20 bit so had to extend msb manually
+    c10 = (buffer_cofficients[5] & 0x08 ? 0xFFFF : 0) << 20 | (buffer_cofficients[5] & 0x0f) << 16 | buffer_cofficients[6] << 8 | buffer_cofficients[7];
+
+    c01 = buffer_cofficients[8] << 8 | buffer_cofficients[9];
+    c11 = buffer_cofficients[10] << 8 | buffer_cofficients[11];
+    c20 = buffer_cofficients[12] << 8 | buffer_cofficients[13];
+    c21 = buffer_cofficients[14] << 8 | buffer_cofficients[15];
+    c30 = buffer_cofficients[16] << 8 | buffer_cofficients[17];
+
     return true;
   }
 }
 bool isBaroActive()
 {
-  Wire.beginTransmission(0x76);
-  if (Wire.endTransmission() != 0) // device not present at the address
+  Wire2.beginTransmission(0x76);
+  if (Wire2.endTransmission() != 0) // device not present at the address
   {
     barometer_status = NOTPRESENT;
     Serial.println("Baro not present");
@@ -1070,52 +1135,19 @@ void getAbosluteAltitudeFromBaro()
   if (barometer_status != ACTIVE)
     return;
 
-  Wire.beginTransmission(0x76);
-  Wire.write(0x08);
-  if (Wire.endTransmission() != 0)
+  Wire2.beginTransmission(0x76);
+  Wire2.write(0x08);
+  if (Wire2.endTransmission() != 0)
   {
     barometer_status = NOTPRESENT;
     return;
   }
 
-  Wire.requestFrom(0x76, 1);
+  Wire2.requestFrom(0x76, 1);
   uint8_t meas_cfg;
-  while (Wire.available() > 0)
+  while (Wire2.available() > 0)
   {
-    meas_cfg = Wire.read();
-  }
-
-  if ((meas_cfg & 0b10000000) == 0b10000000)
-  {
-    // read cofficients
-    Wire.beginTransmission(0x76);
-    Wire.write(0x10);
-    Wire.endTransmission();
-    Wire.requestFrom(0x76, 18); // request pressure and temp data
-    byte i = 0;
-
-    while (Wire.available())
-    {
-      if (i >= 18)
-      {
-        // error
-        Serial.println("ERRor in getting baro reading");
-        barometer_status = NOTPRESENT;
-        break;
-      }
-      buffer_cofficients[i++] = Wire.read();
-    }
-
-    c0 = (buffer_cofficients[0] & 0x80 ? 0xFF : 0) << 12 | buffer_cofficients[0] << 4 | buffer_cofficients[1] >> 4; // was 12 bit so had to extend msb manually
-    c1 = (buffer_cofficients[1] & 0x08 ? 0xFF : 0) << 12 | (buffer_cofficients[1] & 0x0f) << 8 | buffer_cofficients[2];
-    c00 = (buffer_cofficients[3] & 0x80 ? 0xFFFF : 0) << 20 | buffer_cofficients[3] << 12 | buffer_cofficients[4] << 4 | buffer_cofficients[5] >> 4; // was 20 bit so had to extend msb manually
-    c10 = (buffer_cofficients[5] & 0x08 ? 0xFFFF : 0) << 20 | (buffer_cofficients[5] & 0x0f) << 16 | buffer_cofficients[6] << 8 | buffer_cofficients[7];
-
-    c01 = buffer_cofficients[8] << 8 | buffer_cofficients[9];
-    c11 = buffer_cofficients[10] << 8 | buffer_cofficients[11];
-    c20 = buffer_cofficients[12] << 8 | buffer_cofficients[13];
-    c21 = buffer_cofficients[14] << 8 | buffer_cofficients[15];
-    c30 = buffer_cofficients[16] << 8 | buffer_cofficients[17];
+    meas_cfg = Wire2.read();
   }
 
   if ((meas_cfg & 0b00010000) == 0b00010000)
@@ -1123,13 +1155,13 @@ void getAbosluteAltitudeFromBaro()
     // new pressure data available;
     // read temperature then only
 
-    Wire.beginTransmission(0x76);
-    Wire.write(0x00);
-    Wire.endTransmission();
-    Wire.requestFrom(0x76, 6); // request pressure and temp data
+    Wire2.beginTransmission(0x76);
+    Wire2.write(0x00);
+    Wire2.endTransmission();
+    Wire2.requestFrom(0x76, 6); // request pressure and temp data
     byte i = 0;
 
-    while (Wire.available())
+    while (Wire2.available())
     {
       if (i >= 6)
       {
@@ -1138,7 +1170,7 @@ void getAbosluteAltitudeFromBaro()
         barometer_status = NOTPRESENT;
         break;
       }
-      buffer_cofficients[i++] = Wire.read();
+      buffer_cofficients[i++] = Wire2.read();
     }
 
     pressure = int32_t((buffer_cofficients[0] & 0x80 ? 0xFF : 0) << 24 | (buffer_cofficients[0] << 16 | buffer_cofficients[1] << 8 | buffer_cofficients[2])); // was 24 bit so had to add msb // also it is unsigned so before converting to float have to convert to int
@@ -1377,48 +1409,8 @@ void printPercentageTimeCpuUsed()
   Serial.print("Percentage Time Used By Code ");
   Serial.print(percentage_time_used_by_code);
   Serial.print("% ");
-  Serial.print("Actual Loop Frequency");
+  Serial.print("Actual Loop Frequency of the previous cycle was ");
   Serial.println(actual_loop_frequency);
-}
-
-void setup()
-{
-
-  pinMode(GYRO_CS_1, OUTPUT);
-  pinMode(OSD_CS_1, OUTPUT);
-  pinMode(SDCARD_CS_1, OUTPUT);
-  pinMode(LED_1, OUTPUT);
-  pinMode(MOTOR_1, OUTPUT);
-  pinMode(MOTOR_2, OUTPUT);
-  pinMode(MOTOR_3, OUTPUT);
-  pinMode(MOTOR_4, OUTPUT);
-  // so that all spi devices are deselected
-  digitalWrite(OSD_CS_1, HIGH);
-  digitalWrite(GYRO_CS_1, HIGH);
-  digitalWrite(SDCARD_CS_1, HIGH);
-
-  Wire.setSDA(I2C_SDA_2); // SDA
-  Wire.setSCL(I2C_SCL_2); // SCL
-  Wire.begin();
-  Serial.begin(115200);
-  filter.begin(1600);
-  SPI_1.begin(); // used for IMU
-  SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
-
-  sbus.begin(); // Initialize the SBUS object
-
-  // initialiseCompass();
-  // initialiseGps();
-
-  // initialiseBaro();
-  initialiseImu(); // initialize bmi270 in spi mode
-  initialise_SD(); // Initialize SD card
-
-  /*                              Calibration Functions                                         */
-  // calibrateBaroData(); // takes about 3 seconds
-  // calibrateESC(); //ESC
-  // calculate_IMU_error();
-  // calibrateRadioData();
 }
 
 #ifdef SDCARD
@@ -1518,7 +1510,7 @@ bool logData()
     return false;
   }
 
-  if (current_time - sd_log_counter < 10000)
+  if (current_time - sd_log_counter < 1000000 / ARMED_SDCARD_LOG_FREQUENCY)
   {
 
     return false; // 100 hz
@@ -1848,7 +1840,7 @@ void calibrateESC()
           m5_command_PWM = constrain(m5_command_PWM, 125, 250);
           m6_command_PWM = constrain(m6_command_PWM, 125, 250);
           commandMotors();
-          loopRate(2000);
+          loopRate();
         }
 
         break;
@@ -2136,6 +2128,48 @@ void printPIDoutput()
   Serial.print(F(" yaw_PID: "));
   Serial.println(yaw_PID);
 }
+
+void setup()
+{
+
+  pinMode(GYRO_CS_1, OUTPUT);
+  pinMode(OSD_CS_1, OUTPUT);
+  pinMode(SDCARD_CS_1, OUTPUT);
+  pinMode(LED_1, OUTPUT);
+  pinMode(MOTOR_1, OUTPUT);
+  pinMode(MOTOR_2, OUTPUT);
+  pinMode(MOTOR_3, OUTPUT);
+  pinMode(MOTOR_4, OUTPUT);
+  // so that all spi devices are deselected
+  digitalWrite(OSD_CS_1, HIGH);
+  digitalWrite(GYRO_CS_1, HIGH);
+  digitalWrite(SDCARD_CS_1, HIGH);
+
+  // Wire2.setSDA(I2C_SDA_2); // SDA
+  // Wire2.setSCL(I2C_SCL_2); // SCL
+  Wire2.begin();
+  Wire2.setClock(400000); // fast mode + is the maximum supported according to the code of twi.c file in the stm core folder // although pull up resistor may need to be replaced
+  Serial.begin(115200);
+  filter.begin(1600);
+  SPI_1.begin(); // used for IMU
+  SPI_1.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
+
+  sbus.begin(); // Initialize the SBUS object
+
+  // initialiseCompass();
+  // initialiseGps();
+
+  initialiseBaro();
+  initialiseImu(); // initialize bmi270 in spi mode
+  // initialise_SD(); // Initialize SD card
+
+  /*                              Calibration Functions                                         */
+  calibrateBaroData(); // takes about 3 seconds
+  // calibrateESC(); //ESC
+  // calculate_IMU_error();
+  // calibrateRadioData();
+}
+
 void loop()
 {
   prev_time = current_time;
@@ -2160,27 +2194,24 @@ void loop()
   // printCoreTemp();
   // printArmStatus();
 
- printPercentageTimeCpuUsed();
+  //  printPercentageTimeCpuUsed();
 
-
-  // printBaroData();
-  controlPrintRate(100);
+  printBaroData();
+  controlPrintRate(PRINT_FREQUENCY);
 
   getIMUdata();
   // To check if gps code is working fine
   // getGpsData();
   // printGPSData();
 
-
   // getCompassData();
   // printCompassData();
-
-  // getBaroData();
-
+  // unsigned long tim1 = micros();
+  getBaroData();
+  // Serial.println(micros() - tim1);
 
   Madgwick();
   getDesiredState();
-
 
   //
   // logData();
@@ -2191,18 +2222,14 @@ void loop()
   handelFlightMode(); // PID loops goes inside this
   controlMixer();
 
-
   checkForSafety(); // this function is used instead of failsafe in drehmflight
   scaleCommands();
   commandMotors();
-
 
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
   getBatteryStatus();
   getCoreTemp();
 
-
   //// Regulate loop rate
-  loopRate(1600); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
-
+  loopRate(); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
 }
