@@ -1262,7 +1262,7 @@ void getIMUdata()
 
 void Madgwick()
 {
-  filter.updateIMU(GyroX, GyroY, GyroZ, AccX, AccY, AccZ);
+  filter.updateIMU(GyroX, GyroY, GyroZ, AccX, AccY, AccZ , dt);
 
   // print the heading, pitch and roll
   roll_IMU = filter.getRoll();
