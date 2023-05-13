@@ -2148,7 +2148,7 @@ void setup()
   // Wire2.setSDA(I2C_SDA_2); // SDA
   // Wire2.setSCL(I2C_SCL_2); // SCL
   Wire2.begin();
-  Wire2.setClock(400000); // fast mode + is the maximum supported according to the code of twi.c file in the stm core folder // although pull up resistor may need to be replaced
+  Wire2.setClock(400000); // fast mode is the maximum supported 
   Serial.begin(115200);
   filter.begin(1600);
   SPI_1.begin(); // used for IMU

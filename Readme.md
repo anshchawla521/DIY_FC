@@ -89,3 +89,4 @@ Typical SBUS packet looks like 0F E5 03 1F F8 C0 07 3E F0 81 0F 7C E0 03 06 F8 8
 - use the flush command
 - set the temperature source to extenral for cofficients
 - get spi and i2c data at once 
+- Implment a starting cycle paramter to increase randomness
