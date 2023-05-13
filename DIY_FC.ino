@@ -190,7 +190,7 @@ bool log_file_open = false;
 #define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(10), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
 // switching frequency to 10 mhz
 #define FILE_BASE_NAME "LOG"
-char fileName[13] = FILE_BASE_NAME "00.csv";
+char fileName[13] = FILE_BASE_NAME "000.csv";
 #endif
 
 #ifndef SPL06BAROMETER
@@ -1440,18 +1440,23 @@ bool initialise_SD()
   }
   while (sd.exists(fileName))
   {
-    if (fileName[BASE_NAME_SIZE + 1] != '9')
+    if (fileName[BASE_NAME_SIZE + 2] != '9') // check last digit
     {
-      fileName[BASE_NAME_SIZE + 1]++;
+      fileName[BASE_NAME_SIZE + 2]++;
     }
-    else if (fileName[BASE_NAME_SIZE] != '9')
+    else if (fileName[BASE_NAME_SIZE+1] != '9') // check second last digit
+    {
+      fileName[BASE_NAME_SIZE + 2] = '0';
+      fileName[BASE_NAME_SIZE+1]++;
+    }else if (fileName[BASE_NAME_SIZE] != '9') // check third last digit
     {
       fileName[BASE_NAME_SIZE + 1] = '0';
+      fileName[BASE_NAME_SIZE + 2] = '0';
       fileName[BASE_NAME_SIZE]++;
     }
     else
     {
-      Serial.println("Cannot Generate More than 100 log files");
+      Serial.println("Cannot Generate More than 1000 log files");
       sdcard_status = NOTPRESENT;
     }
   }
