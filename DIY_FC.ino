@@ -80,15 +80,14 @@ int vbat_divider = 10;
 int vbat_multiplier = 1;
 
 /*                                         Frequencies                                       */
-unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter, altitude_counter;
+unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter, sd_log_save_counter, altitude_counter;
 float dt;
 bool print_authorisation = false;
 
 //  Note: Using Unsigned Long data type you shouldn't go below 0.1hz as it is likely to overflow
 // Note: Dont go above 2000 hz at all
 // Note: if you eneter anything greater than the LOOP frequency it would be caped at the loop frequency
-#define ARMED_SDCARD_LOG_FREQUENCY 100
-#define DISARMED_SDCARD_LOG_FREQUENCY 100
+#define NOT_DISARMED_SDCARD_LOG_FREQUENCY 100
 #define SAVE_SDCARD_FREQUENCY 10
 #define LOOP_FREQUENCY 1600
 #define PRINT_FREQUENCY 100
@@ -1478,20 +1477,25 @@ bool initialise_SD()
 }
 bool logData()
 {
-  if (arm_status != ARMED && log_file_open)
+  if (arm_status == DISARMED && log_file_open)
   {
     file.close();
     log_file_open = false;
 
     return false;
   }
-  if (sdcard_status != ACTIVE || arm_status != ARMED)
+  if (sdcard_status != ACTIVE || arm_status == DISARMED)
   {
 
     return false;
   }
+  if (current_time - sd_log_save_counter > 1000000 / SAVE_SDCARD_FREQUENCY && log_file_open)
+  {
+    sd_log_save_counter = current_time;
+    file.flush();
+  }
 
-  if (current_time - sd_log_counter < 1000000 / ARMED_SDCARD_LOG_FREQUENCY)
+  if (current_time - sd_log_counter < 1000000 / NOT_DISARMED_SDCARD_LOG_FREQUENCY)
   {
 
     return false; // 100 hz
@@ -2191,7 +2195,7 @@ void setup()
 
   initialiseBaro();
   initialiseImu(); // initialize bmi270 in spi mode
-  // initialise_SD(); // Initialize SD card
+  initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
   calibrateBaroData(); // takes about 3 seconds
@@ -2224,9 +2228,9 @@ void loop()
   // printCoreTemp();
   // printArmStatus();
 
-  //  printPercentageTimeCpuUsed();
+   printPercentageTimeCpuUsed();
 
-  printBaroData();
+  // printBaroData();
   controlPrintRate(PRINT_FREQUENCY);
 
   getIMUdata();
@@ -2244,7 +2248,7 @@ void loop()
   getDesiredState();
 
   //
-  // logData();
+  logData();
 
   //
   getCommands(); // Pulls current available radio commands
