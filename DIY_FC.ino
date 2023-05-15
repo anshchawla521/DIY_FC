@@ -127,7 +127,7 @@ ARM_STATUS arm_status = DISARMED;
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
 // #define KB33COMPASS
-// #define SDCARD
+#define SDCARD
 #define SPL06BAROMETER
 
 // Uncomment only one full scale gyro range (deg/sec)
@@ -186,6 +186,7 @@ FsFile file;
 #error Invalid SD_FAT_TYPE
 #endif // SD_FAT_TYPE
 bool log_file_open = false;
+bool printed_headings = false;
 
 #define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(10), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
 // switching frequency to 10 mhz
@@ -1262,7 +1263,7 @@ void getIMUdata()
 
 void Madgwick()
 {
-  filter.updateIMU(GyroX, GyroY, GyroZ, AccX, AccY, AccZ , dt);
+  filter.updateIMU(GyroX, GyroY, GyroZ, AccX, AccY, AccZ, dt);
 
   // print the heading, pitch and roll
   roll_IMU = filter.getRoll();
@@ -1444,11 +1445,12 @@ bool initialise_SD()
     {
       fileName[BASE_NAME_SIZE + 2]++;
     }
-    else if (fileName[BASE_NAME_SIZE+1] != '9') // check second last digit
+    else if (fileName[BASE_NAME_SIZE + 1] != '9') // check second last digit
     {
       fileName[BASE_NAME_SIZE + 2] = '0';
-      fileName[BASE_NAME_SIZE+1]++;
-    }else if (fileName[BASE_NAME_SIZE] != '9') // check third last digit
+      fileName[BASE_NAME_SIZE + 1]++;
+    }
+    else if (fileName[BASE_NAME_SIZE] != '9') // check third last digit
     {
       fileName[BASE_NAME_SIZE + 1] = '0';
       fileName[BASE_NAME_SIZE + 2] = '0';
@@ -1460,44 +1462,15 @@ bool initialise_SD()
       sdcard_status = NOTPRESENT;
     }
   }
-  if (!file.open(fileName, O_WRONLY | O_CREAT | O_EXCL))
-  {
-    Serial.println("Unable to open/create new file sd card");
-    sdcard_status = NOTPRESENT;
-  }
+// if we reach this point then surely the sd card exists and there should be any errors so continue without trying to open file
+// file would be opened in the log data function
   if (sdcard_status == NOTPRESENT)
     while (true)
       ;
 
   log_file_open = true;
   sdcard_status = ACTIVE;
-  file.print("Time ,");
-  file.print("Roll-IMU ,");
-  file.print("Pitch-IMU ,");
-  file.print("Yaw-IMU ,");
-  file.print("Roll-DES ,");
-  file.print("Pitch-DES ,");
-  file.print("Thro-DES ,");
-  file.print("Yaw-DES ,");
-  file.print("Roll-PID ,");
-  file.print("Pitch-PID ,");
-  file.print("Yaw-PID ,");
-  file.print("motor1 ,");
-  file.print("motor2 ,");
-  file.print("motor3 ,");
-  file.print("motor4 ,");
-  file.print("Arming Status ,");
-  file.print("Battery Voltage ,");
-  file.print("Battery current ,");
-  file.print("Altitude ,");
-  file.print("Flight Mode ,");
-  file.print("Fail safe ,");
-  file.print("Loop Frequency ,");
-  file.print("KP (PRY) ,");
-  file.print("KI (PRY) ,");
-  file.println("KD (PRY)");
-
-  file.close();
+  printed_headings = false;
   return true;
 }
 bool logData()
@@ -1532,6 +1505,36 @@ bool logData()
       return false;
     }
     log_file_open = true;
+  }
+
+  if (!printed_headings)
+  {
+    file.print("Time ,");
+    file.print("Roll-IMU ,");
+    file.print("Pitch-IMU ,");
+    file.print("Yaw-IMU ,");
+    file.print("Roll-DES ,");
+    file.print("Pitch-DES ,");
+    file.print("Thro-DES ,");
+    file.print("Yaw-DES ,");
+    file.print("Roll-PID ,");
+    file.print("Pitch-PID ,");
+    file.print("Yaw-PID ,");
+    file.print("motor1 ,");
+    file.print("motor2 ,");
+    file.print("motor3 ,");
+    file.print("motor4 ,");
+    file.print("Arming Status ,");
+    file.print("Battery Voltage ,");
+    file.print("Battery current ,");
+    file.print("Altitude ,");
+    file.print("Flight Mode ,");
+    file.print("Fail safe ,");
+    file.print("Loop Frequency ,");
+    file.print("KP (PRY) ,");
+    file.print("KI (PRY) ,");
+    file.println("KD (PRY)");
+    printed_headings = true;
   }
 
   file.print(current_time);
@@ -2153,7 +2156,7 @@ void setup()
   // Wire2.setSDA(I2C_SDA_2); // SDA
   // Wire2.setSCL(I2C_SCL_2); // SCL
   Wire2.begin();
-  Wire2.setClock(400000); // fast mode is the maximum supported 
+  Wire2.setClock(400000); // fast mode is the maximum supported
   Serial.begin(115200);
   filter.begin(1600);
   SPI_1.begin(); // used for IMU
