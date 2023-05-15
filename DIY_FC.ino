@@ -108,6 +108,7 @@ int sensorMax = 0;    // maximum sensor value
 #define PITCH_CH 1
 #define YAW_CH 3
 #define PREARM_CH 4
+#define MARKER_CH 4
 #define ARM_CH 5
 #define MODES_CH 6
 
@@ -187,6 +188,8 @@ FsFile file;
 #endif // SD_FAT_TYPE
 bool log_file_open = false;
 bool printed_headings = false;
+bool insert_marker_in_file = false;
+bool prev_state_of_marker_switch = false;
 
 #define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(10), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
 // switching frequency to 10 mhz
@@ -1462,8 +1465,8 @@ bool initialise_SD()
       sdcard_status = NOTPRESENT;
     }
   }
-// if we reach this point then surely the sd card exists and there should be any errors so continue without trying to open file
-// file would be opened in the log data function
+  // if we reach this point then surely the sd card exists and there should be any errors so continue without trying to open file
+  // file would be opened in the log data function
   if (sdcard_status == NOTPRESENT)
     while (true)
       ;
@@ -1535,6 +1538,12 @@ bool logData()
     file.print("KI (PRY) ,");
     file.println("KD (PRY)");
     printed_headings = true;
+  }
+
+  if (insert_marker_in_file)
+  {
+    file.println("MARKER");
+    insert_marker_in_file = false;
   }
 
   file.print(current_time);
@@ -2050,6 +2059,7 @@ void calibrateRadioData()
 void handelAuxChannels()
 {
   // used 1800 instead of 1500 so that 3 pos switches dont cause problem
+  // ARM - PREARM Logic
   if (channels[ARM_CH] <= 1800 && arm_status == ARMED)
   {
     arm_status = DISARMED;
@@ -2071,6 +2081,18 @@ void handelAuxChannels()
     arm_status = NOPREARM;
   }
 
+  // Insertion of marker
+  if (arm_status == ARMED && channels[MARKER_CH] > 1800 && !prev_state_of_marker_switch)
+  {
+    insert_marker_in_file = true;
+    prev_state_of_marker_switch = true;
+  }
+  else if (channels[MARKER_CH] <= 1800 && prev_state_of_marker_switch)
+  {
+    prev_state_of_marker_switch = false;
+  }
+
+  // FLight modes
   if (channels[MODES_CH] > 1800)
   {
     flight_mode = STABALIZE;
