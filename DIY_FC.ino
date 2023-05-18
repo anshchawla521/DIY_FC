@@ -80,7 +80,7 @@ int vbat_divider = 10;
 int vbat_multiplier = 1;
 
 /*                                         Frequencies                                       */
-unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter, sd_log_save_counter, altitude_counter;
+unsigned long prev_time, current_time, print_counter, battery_counter, sd_log_counter, sd_log_save_counter, altitude_counter;
 float dt;
 bool print_authorisation = false;
 
@@ -206,7 +206,7 @@ peripherals barometer_status = ACTIVE;
 
 #define ROLL_RATE 45          // in deg/s
 #define PITCH_RATE 45         // in deg/s // if want variable rates / on switch then use uint16_t data type
-#define YAW_RATE 45           // in deg/s
+#define YAW_RATE 100          // in deg/s
 #define MIN_PULSE_LENGTH 1000 // Minimum pulse length in µs
 #define MAX_PULSE_LENGTH 2000 // Maximum pulse length in µs
 
@@ -255,7 +255,6 @@ float mad_roll, mad_pitch, mad_heading;
 
 float batteryVoltage = 0;
 float batteryCurrent = 0;
-float coreTemp = 0;
 float percentage_time_used_by_code;
 int actual_loop_frequency;
 ////////////////////////////////////IMU related variables////////////////////////////
@@ -283,11 +282,11 @@ float maxYaw = 160.0;  // Max yaw rate in deg/sec
 
 float Kp_roll_angle = 0.2;   // Roll P-gain - angle mode
 float Ki_roll_angle = 0.3;   // Roll I-gain - angle mode
-float Kd_roll_angle = 0.05;  // Roll D-gain - angle mode (has no effect on controlANGLE2)
+float Kd_roll_angle = 0.15;  // Roll D-gain - angle mode (has no effect on controlANGLE2)
 float B_loop_roll = 0.9;     // Roll damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
 float Kp_pitch_angle = 0.2;  // Pitch P-gain - angle mode
 float Ki_pitch_angle = 0.3;  // Pitch I-gain - angle mode
-float Kd_pitch_angle = 0.05; // Pitch D-gain - angle mode (has no effect on controlANGLE2)
+float Kd_pitch_angle = 0.15; // Pitch D-gain - angle mode (has no effect on controlANGLE2)
 float B_loop_pitch = 0.9;    // Pitch damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
 
 float Kp_roll_rate = 0.15;    // Roll P-gain - rate mode
@@ -1379,15 +1378,7 @@ void getBatteryStatus()
   batteryVoltage = ((analogRead(ADC_BATT_1) * vbat_multiplier * vbat_scale * 3.3)) / vbat_divider / 1024;
   batteryCurrent = analogRead(ADC_CURR_1) * 3.3 * ibata_scale / 1024;
 }
-void getCoreTemp()
-{
-  // run at 1 hz
-  //  Note: Using Unsigned Long data type you shouldn't go below 0.1hz as it is likely to overflow
-  if (current_time - core_temp_counter < 100000000)
-    return;
-  core_temp_counter = current_time;
-  coreTemp = analogRead(ATEMP) / 1024 * 3.3;
-}
+
 
 void printBatteryStatus()
 {
@@ -1398,13 +1389,7 @@ void printBatteryStatus()
   Serial.print("Battery Current");
   Serial.println(batteryCurrent);
 }
-void printCoreTemp()
-{
-  if (!print_authorisation)
-    return;
-  Serial.print("Core temperature");
-  Serial.println(coreTemp);
-}
+
 void printPercentageTimeCpuUsed()
 {
   if (!print_authorisation)
@@ -1699,7 +1684,7 @@ void printDesiredState()
 void controlPrintRate(uint16_t maxfreq)
 {
   unsigned long print_time = (1.0 / maxfreq) * 1000000;
-  if (current_time - print_counter >= print_time)
+  if (current_time - print_counter >= print_time && Serial.available() > 0)
   {
     print_counter = current_time;
     print_authorisation = true;
@@ -1991,6 +1976,13 @@ void controlANGLE()
   error_yaw_prev = error_yaw;
   integral_yaw_prev = integral_yaw;
 }
+
+void FourPointRoll()
+{
+  // first implement acro
+  // also implment parameters for any stick change so mode can be cancelled
+  // could also go for flight mode switch change but natural instincts toward sticks
+}
 void calibrateRadioData()
 {
   current_time = millis();
@@ -2225,10 +2217,10 @@ void loop()
   // printPIDoutput();
   // printMotorCommands();
   // printBatteryStatus();
-  // printCoreTemp();
+
   // printArmStatus();
 
-   printPercentageTimeCpuUsed();
+  printPercentageTimeCpuUsed();
 
   // printBaroData();
   controlPrintRate(PRINT_FREQUENCY);
@@ -2262,7 +2254,7 @@ void loop()
 
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
   getBatteryStatus();
-  getCoreTemp();
+
 
   //// Regulate loop rate
   loopRate(); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
