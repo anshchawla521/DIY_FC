@@ -204,8 +204,8 @@ peripherals barometer_status = ACTIVE;
 
 /*                                         RATES                                                         */
 
-#define ROLL_RATE 45          // in deg/s
-#define PITCH_RATE 45         // in deg/s // if want variable rates / on switch then use uint16_t data type
+#define ROLL_RATE 100          // in deg/s
+#define PITCH_RATE 100         // in deg/s // if want variable rates / on switch then use uint16_t data type
 #define YAW_RATE 100          // in deg/s
 #define MIN_PULSE_LENGTH 1000 // Minimum pulse length in µs
 #define MAX_PULSE_LENGTH 2000 // Maximum pulse length in µs
@@ -280,21 +280,13 @@ float maxRoll = 30.0;  // Max roll angle in degrees for angle mode (maximum ~70 
 float maxPitch = 30.0; // Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
 float maxYaw = 160.0;  // Max yaw rate in deg/sec
 
-float Kp_roll_angle = 0.2;   // Roll P-gain - angle mode
-float Ki_roll_angle = 0.3;   // Roll I-gain - angle mode
-float Kd_roll_angle = 0.15;  // Roll D-gain - angle mode (has no effect on controlANGLE2)
-float B_loop_roll = 0.9;     // Roll damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
-float Kp_pitch_angle = 0.2;  // Pitch P-gain - angle mode
-float Ki_pitch_angle = 0.3;  // Pitch I-gain - angle mode
-float Kd_pitch_angle = 0.15; // Pitch D-gain - angle mode (has no effect on controlANGLE2)
-float B_loop_pitch = 0.9;    // Pitch damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
+float Kp_roll_angle = 0.1;   // Roll P-gain - angle mode
+float Ki_roll_angle = 0.1;   // Roll I-gain - angle mode
+float Kd_roll_angle = 0.1;  // Roll D-gain - angle mode (has no effect on controlANGLE2)
 
-float Kp_roll_rate = 0.15;    // Roll P-gain - rate mode
-float Ki_roll_rate = 0.2;     // Roll I-gain - rate mode
-float Kd_roll_rate = 0.0002;  // Roll D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
-float Kp_pitch_rate = 0.15;   // Pitch P-gain - rate mode
-float Ki_pitch_rate = 0.2;    // Pitch I-gain - rate mode
-float Kd_pitch_rate = 0.0002; // Pitch D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
+float Kp_pitch_angle = 0.1;  // Pitch P-gain - angle mode
+float Ki_pitch_angle = 0.1;  // Pitch I-gain - angle mode
+float Kd_pitch_angle = 0.1; // Pitch D-gain - angle mode (has no effect on controlANGLE2)
 
 float Kp_yaw = 0.3;     // Yaw P-gain
 float Ki_yaw = 0.05;    // Yaw I-gain
@@ -302,8 +294,8 @@ float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, moto
 
 // Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
 
-float B_accel = 0.14; // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
-float B_gyro = 0.14;  // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
+float B_accel = 0.25; // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
+float B_gyro = 0.25;  // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
 float B_baro = 0.50;  // baro altitude low pass filter
 // Controller:
 float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_il, integral_roll_ol, integral_roll_prev, integral_roll_prev_il, integral_roll_prev_ol, derivative_roll, roll_PID = 0;
