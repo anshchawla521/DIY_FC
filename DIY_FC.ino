@@ -80,7 +80,7 @@ int vbat_divider = 10;
 int vbat_multiplier = 1;
 
 /*                                         Frequencies                                       */
-unsigned long prev_time, current_time, print_counter, battery_counter, core_temp_counter, sd_log_counter, sd_log_save_counter, altitude_counter;
+unsigned long prev_time, current_time, print_counter, battery_counter, sd_log_counter, sd_log_save_counter, altitude_counter;
 float dt;
 bool print_authorisation = false;
 
@@ -91,6 +91,7 @@ bool print_authorisation = false;
 #define SAVE_SDCARD_FREQUENCY 10
 #define LOOP_FREQUENCY 1600
 #define PRINT_FREQUENCY 100
+
 // variables:
 
 int maxch[16] = {1810, 1810, 1810, 1810, 1810, 1810, 1810, 172, 1187, 1187, 1187, 1187, 1187, 1187, 1187, 1187};
@@ -126,7 +127,7 @@ ARM_STATUS arm_status = DISARMED;
 
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
-// #define KB33COMPASS
+// #define HMC5883COMPASS
 #define SDCARD
 #define SPL06BAROMETER
 
@@ -156,7 +157,7 @@ peripherals gps_status = DISABLED;
 peripherals gps_status = ACTIVE;
 #endif
 
-#ifndef KB33COMPASS
+#ifndef HMC5883COMPASS
 peripherals compass_status = DISABLED;
 #else
 peripherals compass_status = ACTIVE;
@@ -204,9 +205,9 @@ peripherals barometer_status = ACTIVE;
 
 /*                                         RATES                                                         */
 
-#define ROLL_RATE 45          // in deg/s
-#define PITCH_RATE 45         // in deg/s // if want variable rates / on switch then use uint16_t data type
-#define YAW_RATE 45           // in deg/s
+#define ROLL_RATE 100         // in deg/s
+#define PITCH_RATE 100        // in deg/s // if want variable rates / on switch then use uint16_t data type
+#define YAW_RATE 100          // in deg/s
 #define MIN_PULSE_LENGTH 1000 // Minimum pulse length in µs
 #define MAX_PULSE_LENGTH 2000 // Maximum pulse length in µs
 
@@ -243,7 +244,7 @@ float longitude = 0;
 TinyGPSPlus gps_obj;
 #endif
 //////////////////////////////////variables for compass
-#ifdef KB33COMPASS
+#ifdef HMC5883COMPASS
 Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
 float headingAngle;
 #endif
@@ -255,7 +256,6 @@ float mad_roll, mad_pitch, mad_heading;
 
 float batteryVoltage = 0;
 float batteryCurrent = 0;
-float coreTemp = 0;
 float percentage_time_used_by_code;
 int actual_loop_frequency;
 ////////////////////////////////////IMU related variables////////////////////////////
@@ -266,36 +266,25 @@ float GyroX_prev, GyroY_prev, GyroZ_prev;
 
 float roll_IMU, pitch_IMU, yaw_IMU;
 
-float AccErrorX = -0.02;
-float AccErrorY = -0.05;
+float AccErrorX = 0.01;
+float AccErrorY = -0.02;
 float AccErrorZ = 0.00;
-float GyroErrorX = -0.18;
-float GyroErrorY = -0.04;
-float GyroErrorZ = 0.02;
+float GyroErrorX = -0.12;
+float GyroErrorY = -0.01;
+float GyroErrorZ = 0.05;
 
 float thro_des, roll_des, pitch_des, yaw_des;
 
 // Controller parameters (take note of defaults before modifying!):
-float i_limit = 25.0;  // Integrator saturation level, mostly for safety (default 25.0)
-float maxRoll = 30.0;  // Max roll angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
-float maxPitch = 30.0; // Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
-float maxYaw = 160.0;  // Max yaw rate in deg/sec
+float i_limit = 25.0; // Integrator saturation level, mostly for safety (default 25.0)
 
-float Kp_roll_angle = 0.2;   // Roll P-gain - angle mode
-float Ki_roll_angle = 0.3;   // Roll I-gain - angle mode
-float Kd_roll_angle = 0.05;  // Roll D-gain - angle mode (has no effect on controlANGLE2)
-float B_loop_roll = 0.9;     // Roll damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
-float Kp_pitch_angle = 0.2;  // Pitch P-gain - angle mode
-float Ki_pitch_angle = 0.3;  // Pitch I-gain - angle mode
-float Kd_pitch_angle = 0.05; // Pitch D-gain - angle mode (has no effect on controlANGLE2)
-float B_loop_pitch = 0.9;    // Pitch damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
+float Kp_roll_angle = 0.1; // Roll P-gain - angle mode
+float Ki_roll_angle = 0.1; // Roll I-gain - angle mode
+float Kd_roll_angle = 0.1; // Roll D-gain - angle mode (has no effect on controlANGLE2)
 
-float Kp_roll_rate = 0.15;    // Roll P-gain - rate mode
-float Ki_roll_rate = 0.2;     // Roll I-gain - rate mode
-float Kd_roll_rate = 0.0002;  // Roll D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
-float Kp_pitch_rate = 0.15;   // Pitch P-gain - rate mode
-float Ki_pitch_rate = 0.2;    // Pitch I-gain - rate mode
-float Kd_pitch_rate = 0.0002; // Pitch D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
+float Kp_pitch_angle = 0.1; // Pitch P-gain - angle mode
+float Ki_pitch_angle = 0.1; // Pitch I-gain - angle mode
+float Kd_pitch_angle = 0.1; // Pitch D-gain - angle mode (has no effect on controlANGLE2)
 
 float Kp_yaw = 0.3;     // Yaw P-gain
 float Ki_yaw = 0.05;    // Yaw I-gain
@@ -303,8 +292,8 @@ float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, moto
 
 // Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
 
-float B_accel = 0.14; // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
-float B_gyro = 0.14;  // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
+float B_accel = 0.25; // Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
+float B_gyro = 0.25;  // Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
 float B_baro = 0.50;  // baro altitude low pass filter
 // Controller:
 float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_il, integral_roll_ol, integral_roll_prev, integral_roll_prev_il, integral_roll_prev_ol, derivative_roll, roll_PID = 0;
@@ -875,7 +864,7 @@ void loopRate(int freq = LOOP_FREQUENCY)
   }
 }
 
-#ifdef KB33COMPASS
+#ifdef HMC5883COMPASS
 void initialiseCompass()
 {
   if (isCompassActive() == true)
@@ -1379,15 +1368,6 @@ void getBatteryStatus()
   batteryVoltage = ((analogRead(ADC_BATT_1) * vbat_multiplier * vbat_scale * 3.3)) / vbat_divider / 1024;
   batteryCurrent = analogRead(ADC_CURR_1) * 3.3 * ibata_scale / 1024;
 }
-void getCoreTemp()
-{
-  // run at 1 hz
-  //  Note: Using Unsigned Long data type you shouldn't go below 0.1hz as it is likely to overflow
-  if (current_time - core_temp_counter < 100000000)
-    return;
-  core_temp_counter = current_time;
-  coreTemp = analogRead(ATEMP) / 1024 * 3.3;
-}
 
 void printBatteryStatus()
 {
@@ -1398,13 +1378,7 @@ void printBatteryStatus()
   Serial.print("Battery Current");
   Serial.println(batteryCurrent);
 }
-void printCoreTemp()
-{
-  if (!print_authorisation)
-    return;
-  Serial.print("Core temperature");
-  Serial.println(coreTemp);
-}
+
 void printPercentageTimeCpuUsed()
 {
   if (!print_authorisation)
@@ -1522,8 +1496,8 @@ bool logData()
     file.print("Yaw-IMU ,");
     file.print("Roll-DES ,");
     file.print("Pitch-DES ,");
-    file.print("Thro-DES ,");
     file.print("Yaw-DES ,");
+    file.print("Thro-DES ,");
     file.print("Roll-PID ,");
     file.print("Pitch-PID ,");
     file.print("Yaw-PID ,");
@@ -1699,7 +1673,7 @@ void printDesiredState()
 void controlPrintRate(uint16_t maxfreq)
 {
   unsigned long print_time = (1.0 / maxfreq) * 1000000;
-  if (current_time - print_counter >= print_time)
+  if (current_time - print_counter >= print_time && Serial.available() > 0)
   {
     print_counter = current_time;
     print_authorisation = true;
@@ -1746,13 +1720,15 @@ unsigned long start_of_pulse;
 
 void scaleCommands()
 {
-  m1_command_PWM = m1_command_scaled * 125 + 125;
-  m2_command_PWM = m2_command_scaled * 125 + 125;
-  m3_command_PWM = m3_command_scaled * 125 + 125;
-  m4_command_PWM = m4_command_scaled * 125 + 125;
-  m5_command_PWM = m5_command_scaled * 125 + 125;
-  m6_command_PWM = m6_command_scaled * 125 + 125;
+  // 130 instead of 125 for IDLE throttle
+  m1_command_PWM = m1_command_scaled * 125 + 130;
+  m2_command_PWM = m2_command_scaled * 125 + 130;
+  m3_command_PWM = m3_command_scaled * 125 + 130;
+  m4_command_PWM = m4_command_scaled * 125 + 130;
+  m5_command_PWM = m5_command_scaled * 125 + 130;
+  m6_command_PWM = m6_command_scaled * 125 + 130;
   // Constrain commands to motors to the max and min limits
+
   m1_command_PWM = constrain(m1_command_PWM, 120, 250);
   m2_command_PWM = constrain(m2_command_PWM, 120, 250);
   m3_command_PWM = constrain(m3_command_PWM, 120, 250);
@@ -1991,6 +1967,13 @@ void controlANGLE()
   error_yaw_prev = error_yaw;
   integral_yaw_prev = integral_yaw;
 }
+
+void FourPointRoll()
+{
+  // first implement acro
+  // also implment parameters for any stick change so mode can be cancelled
+  // could also go for flight mode switch change but natural instincts toward sticks
+}
 void calibrateRadioData()
 {
   current_time = millis();
@@ -2225,10 +2208,10 @@ void loop()
   // printPIDoutput();
   // printMotorCommands();
   // printBatteryStatus();
-  // printCoreTemp();
+
   // printArmStatus();
 
-   printPercentageTimeCpuUsed();
+  printPercentageTimeCpuUsed();
 
   // printBaroData();
   controlPrintRate(PRINT_FREQUENCY);
@@ -2262,7 +2245,6 @@ void loop()
 
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
   getBatteryStatus();
-  getCoreTemp();
 
   //// Regulate loop rate
   loopRate(); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
