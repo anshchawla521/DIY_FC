@@ -32,7 +32,7 @@
 
 #define FC_FIRMWARE_NAME            "Betaflight"
 #define FC_VERSION_MAJOR            4  // increment when a major release is made (big new feature, etc)
-#define FC_VERSION_MINOR            0  // increment when a minor release is made (small new feature, change etc)
+#define FC_VERSION_MINOR            1  // increment when a minor release is made (small new feature, change etc)
 #define FC_VERSION_PATCH_LEVEL      0  // increment when a bug is fixed
 
 extern const char* const targetName;
@@ -286,10 +286,11 @@ void send_MSP_UID()
   packet[0] = '$';
   packet[1] = 'M';
   packet[2] = '>';
-  packet[3] = 3;
+  packet[3] = 6;
   packet[4] = MSP_UID;
+  
 
-  tv = U_ID_0;
+  tv = uint32_t(U_ID_0);
   packet[5] = tv & 0xff;
   tv = tv >> 8;
   packet[6] = tv & 0xff;
@@ -298,7 +299,7 @@ void send_MSP_UID()
   tv = tv >> 8;
   packet[8] = tv & 0xff;
 
-  tv = U_ID_1;
+  tv = uint32_t(U_ID_1);
   packet[9] = tv & 0xff;
   tv = tv >> 8;
   packet[10] = tv & 0xff;
@@ -307,7 +308,7 @@ void send_MSP_UID()
   tv = tv >> 8;
   packet[12] = tv & 0xff;
 
-  tv = U_ID_0;
+  tv = uint32_t(U_ID_2);
   packet[13] = tv & 0xff;
   tv = tv >> 8;
   packet[14] = tv & 0xff;
@@ -940,7 +941,7 @@ void send_MSP_BOXIDS()    // incomplete
 
 //------------------------------------------------------------
 
-void loop()
+void call_msp()
 {
   uint8_t response[64];
   uint8_t response_length = 0;
@@ -1060,4 +1061,10 @@ if (Serial.available() > 0){
       break;
     }
 }
+}
+
+void loop()
+{
+  call_msp();
+  return;
 }
