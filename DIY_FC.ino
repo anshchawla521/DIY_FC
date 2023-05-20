@@ -91,6 +91,7 @@ bool print_authorisation = false;
 #define SAVE_SDCARD_FREQUENCY 10
 #define LOOP_FREQUENCY 1600
 #define PRINT_FREQUENCY 100
+
 // variables:
 
 int maxch[16] = {1810, 1810, 1810, 1810, 1810, 1810, 1810, 172, 1187, 1187, 1187, 1187, 1187, 1187, 1187, 1187};
@@ -204,8 +205,8 @@ peripherals barometer_status = ACTIVE;
 
 /*                                         RATES                                                         */
 
-#define ROLL_RATE 100          // in deg/s
-#define PITCH_RATE 100         // in deg/s // if want variable rates / on switch then use uint16_t data type
+#define ROLL_RATE 100         // in deg/s
+#define PITCH_RATE 100        // in deg/s // if want variable rates / on switch then use uint16_t data type
 #define YAW_RATE 100          // in deg/s
 #define MIN_PULSE_LENGTH 1000 // Minimum pulse length in µs
 #define MAX_PULSE_LENGTH 2000 // Maximum pulse length in µs
@@ -265,27 +266,24 @@ float GyroX_prev, GyroY_prev, GyroZ_prev;
 
 float roll_IMU, pitch_IMU, yaw_IMU;
 
-float AccErrorX = -0.02;
-float AccErrorY = -0.05;
+float AccErrorX = 0.01;
+float AccErrorY = -0.02;
 float AccErrorZ = 0.00;
-float GyroErrorX = -0.18;
-float GyroErrorY = -0.04;
-float GyroErrorZ = 0.02;
+float GyroErrorX = -0.12;
+float GyroErrorY = -0.01;
+float GyroErrorZ = 0.05;
 
 float thro_des, roll_des, pitch_des, yaw_des;
 
 // Controller parameters (take note of defaults before modifying!):
-float i_limit = 25.0;  // Integrator saturation level, mostly for safety (default 25.0)
-float maxRoll = 30.0;  // Max roll angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
-float maxPitch = 30.0; // Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
-float maxYaw = 160.0;  // Max yaw rate in deg/sec
+float i_limit = 25.0; // Integrator saturation level, mostly for safety (default 25.0)
 
-float Kp_roll_angle = 0.1;   // Roll P-gain - angle mode
-float Ki_roll_angle = 0.1;   // Roll I-gain - angle mode
-float Kd_roll_angle = 0.1;  // Roll D-gain - angle mode (has no effect on controlANGLE2)
+float Kp_roll_angle = 0.1; // Roll P-gain - angle mode
+float Ki_roll_angle = 0.1; // Roll I-gain - angle mode
+float Kd_roll_angle = 0.1; // Roll D-gain - angle mode (has no effect on controlANGLE2)
 
-float Kp_pitch_angle = 0.1;  // Pitch P-gain - angle mode
-float Ki_pitch_angle = 0.1;  // Pitch I-gain - angle mode
+float Kp_pitch_angle = 0.1; // Pitch P-gain - angle mode
+float Ki_pitch_angle = 0.1; // Pitch I-gain - angle mode
 float Kd_pitch_angle = 0.1; // Pitch D-gain - angle mode (has no effect on controlANGLE2)
 
 float Kp_yaw = 0.3;     // Yaw P-gain
@@ -1371,7 +1369,6 @@ void getBatteryStatus()
   batteryCurrent = analogRead(ADC_CURR_1) * 3.3 * ibata_scale / 1024;
 }
 
-
 void printBatteryStatus()
 {
   if (!print_authorisation)
@@ -1499,8 +1496,8 @@ bool logData()
     file.print("Yaw-IMU ,");
     file.print("Roll-DES ,");
     file.print("Pitch-DES ,");
-    file.print("Thro-DES ,");
     file.print("Yaw-DES ,");
+    file.print("Thro-DES ,");
     file.print("Roll-PID ,");
     file.print("Pitch-PID ,");
     file.print("Yaw-PID ,");
@@ -1723,13 +1720,15 @@ unsigned long start_of_pulse;
 
 void scaleCommands()
 {
-  m1_command_PWM = m1_command_scaled * 125 + 125;
-  m2_command_PWM = m2_command_scaled * 125 + 125;
-  m3_command_PWM = m3_command_scaled * 125 + 125;
-  m4_command_PWM = m4_command_scaled * 125 + 125;
-  m5_command_PWM = m5_command_scaled * 125 + 125;
-  m6_command_PWM = m6_command_scaled * 125 + 125;
+  // 130 instead of 125 for IDLE throttle
+  m1_command_PWM = m1_command_scaled * 125 + 130;
+  m2_command_PWM = m2_command_scaled * 125 + 130;
+  m3_command_PWM = m3_command_scaled * 125 + 130;
+  m4_command_PWM = m4_command_scaled * 125 + 130;
+  m5_command_PWM = m5_command_scaled * 125 + 130;
+  m6_command_PWM = m6_command_scaled * 125 + 130;
   // Constrain commands to motors to the max and min limits
+
   m1_command_PWM = constrain(m1_command_PWM, 120, 250);
   m2_command_PWM = constrain(m2_command_PWM, 120, 250);
   m3_command_PWM = constrain(m3_command_PWM, 120, 250);
@@ -2246,7 +2245,6 @@ void loop()
 
   // failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
   getBatteryStatus();
-
 
   //// Regulate loop rate
   loopRate(); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
