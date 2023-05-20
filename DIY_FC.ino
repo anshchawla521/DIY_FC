@@ -127,7 +127,7 @@ ARM_STATUS arm_status = DISARMED;
 
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
-// #define KB33COMPASS
+// #define HMC5883COMPASS
 #define SDCARD
 #define SPL06BAROMETER
 
@@ -157,7 +157,7 @@ peripherals gps_status = DISABLED;
 peripherals gps_status = ACTIVE;
 #endif
 
-#ifndef KB33COMPASS
+#ifndef HMC5883COMPASS
 peripherals compass_status = DISABLED;
 #else
 peripherals compass_status = ACTIVE;
@@ -244,7 +244,7 @@ float longitude = 0;
 TinyGPSPlus gps_obj;
 #endif
 //////////////////////////////////variables for compass
-#ifdef KB33COMPASS
+#ifdef HMC5883COMPASS
 Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
 float headingAngle;
 #endif
@@ -864,7 +864,7 @@ void loopRate(int freq = LOOP_FREQUENCY)
   }
 }
 
-#ifdef KB33COMPASS
+#ifdef HMC5883COMPASS
 void initialiseCompass()
 {
   if (isCompassActive() == true)
