@@ -88,7 +88,7 @@ bool print_authorisation = false;
 // Note: Dont go above 2000 hz at all
 // Note: if you eneter anything greater than the LOOP frequency it would be caped at the loop frequency
 #define NOT_DISARMED_SDCARD_LOG_FREQUENCY 100
-#define SAVE_SDCARD_FREQUENCY 10
+#define SAVE_SDCARD_FREQUENCY 1
 #define LOOP_FREQUENCY 1600
 #define PRINT_FREQUENCY 100
 
@@ -128,8 +128,8 @@ ARM_STATUS arm_status = DISARMED;
 /*                                      CONFIGURATIONS                                                */
 // #define M8nGPS
 // #define HMC5883COMPASS
-#define SDCARD
-#define SPL06BAROMETER
+// #define SDCARD
+// #define SPL06BAROMETER
 
 // Uncomment only one full scale gyro range (deg/sec)
 // #define GYRO_125DPS
@@ -191,7 +191,7 @@ bool printed_headings = false;
 bool insert_marker_in_file = false;
 bool prev_state_of_marker_switch = false;
 
-#define SD_CONFIG SdSpiConfig(SDCARD_CS_1, SHARED_SPI, SD_SCK_MHZ(10), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
+#define SD_CONFIG SdSpiConfig(SDCARD_CS_1, DEDICATED_SPI, SD_SCK_MHZ(10), &SPI_2) // sdcard on spi bus 2 // was not sure if it was dedicated on shared so went with safer option // upto 32gb card supported
 // switching frequency to 10 mhz
 #define FILE_BASE_NAME "LOG"
 char fileName[13] = FILE_BASE_NAME "000.csv";
@@ -2069,6 +2069,7 @@ void handelAuxChannels()
   }
 
   // Insertion of marker
+  #ifdef SDCARD
   if (arm_status == ARMED && channels[MARKER_CH] > 1800 && !prev_state_of_marker_switch)
   {
     insert_marker_in_file = true;
@@ -2078,6 +2079,7 @@ void handelAuxChannels()
   {
     prev_state_of_marker_switch = false;
   }
+#endif
 
   // FLight modes
   if (channels[MODES_CH] > 1800)
@@ -2176,12 +2178,12 @@ void setup()
   // initialiseCompass();
   // initialiseGps();
 
-  initialiseBaro();
+  // initialiseBaro();
   initialiseImu(); // initialize bmi270 in spi mode
-  initialise_SD(); // Initialize SD card
+  // initialise_SD(); // Initialize SD card
 
   /*                              Calibration Functions                                         */
-  calibrateBaroData(); // takes about 3 seconds
+  // calibrateBaroData(); // takes about 3 seconds
   // calibrateESC(); //ESC
   // calculate_IMU_error();
   // calibrateRadioData();
@@ -2224,14 +2226,14 @@ void loop()
   // getCompassData();
   // printCompassData();
   // unsigned long tim1 = micros();
-  getBaroData();
+  // getBaroData();
   // Serial.println(micros() - tim1);
 
   Madgwick();
   getDesiredState();
 
   //
-  logData();
+  // logData();
 
   //
   getCommands(); // Pulls current available radio commands
