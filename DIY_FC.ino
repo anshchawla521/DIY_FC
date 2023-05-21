@@ -103,9 +103,9 @@ int sensorMax = 0;    // maximum sensor value
 ////////////////////parameters/////////////
 
 /*                                      CHANNEL MAPPINGS                                             */
-#define THROTTLE_CH 2
 #define ROLL_CH 0
 #define PITCH_CH 1
+#define THROTTLE_CH 2
 #define YAW_CH 3
 #define PREARM_CH 4
 #define MARKER_CH 4
